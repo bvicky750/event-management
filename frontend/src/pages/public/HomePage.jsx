@@ -132,7 +132,7 @@ export const HomePage = () => {
       color: 'from-[#3B82F6] to-[#1D4ED8]'
     },
     {
-      id: 'Technical',
+      id: 'Hackathon',
       name: 'Coding & Hackathons',
       desc: '24H sprints, DSA marathons & model hacking',
       icon: Code2,
@@ -218,13 +218,13 @@ export const HomePage = () => {
 
           {/* Single Primary Action Button (Desktop & Tablet option) */}
           <div className="pt-4 hidden sm:block">
-            <a
-              href="#explore-section"
+            <Link
+              to="/opportunities"
               className="inline-flex items-center gap-2.5 px-8 py-3.5 rounded-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-bold text-sm transition shadow-lg shadow-blue-500/25 hover:scale-105"
             >
-              <span>Explore Opportunities</span>
+              <span>Explore All Opportunities</span>
               <ArrowRight className="w-4 h-4" />
-            </a>
+            </Link>
           </div>
         </div>
 
@@ -242,34 +242,9 @@ export const HomePage = () => {
       </section>
 
       {/* =========================================
-          2. OPPORTUNITY SEARCH & EXPLORE SECTION
+          2. OPPORTUNITY EXPLORE SECTION
           ========================================= */}
       <div id="explore-section" className="scroll-mt-24 space-y-16">
-        
-        {/* Grand & Bold Sky Search Bar */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="rounded-3xl bg-white/75 backdrop-blur-md border border-sky-200/80 p-5 sm:p-8 shadow-sky-card">
-            <form onSubmit={handleSearchSubmit} className="relative flex items-center w-full max-w-4xl mx-auto group">
-              <div className="relative w-full flex items-center">
-                <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-6 h-6 sm:w-7 sm:h-7 text-[#2563EB]" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search aptitude, resume workshops, hackathons, symposiums..."
-                  className="w-full pl-16 sm:pl-18 pr-36 sm:pr-44 py-5 sm:py-6 rounded-full bg-white/90 border-3 border-[#6AB0E3] focus:border-[#2563EB] text-[#0F172A] placeholder-[#5B7B9C] text-base sm:text-lg font-black focus:outline-none transition-all shadow-md focus:shadow-xl font-display"
-                />
-                <button
-                  type="submit"
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 px-7 sm:px-9 py-3.5 sm:py-4 rounded-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-extrabold text-sm sm:text-base transition-all shadow-md hover:shadow-lg hover:scale-[1.02] flex items-center gap-2"
-                >
-                  <span>Search</span>
-                  <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5" />
-                </button>
-              </div>
-            </form>
-          </div>
-        </section>
 
         {hasActiveFilters ? (
           <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
@@ -294,12 +269,10 @@ export const HomePage = () => {
               >
                 Clear Filters
               </button>
-            </div>
-
-            {filteredEvents.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            </div>            {filteredEvents.length > 0 ? (
+              <div className="space-y-4 sm:space-y-5">
                 {filteredEvents.map((ev) => (
-                  <EventCard key={ev.id} event={ev} variant="standard" />
+                  <EventCard key={ev.id} event={ev} variant="horizontal" />
                 ))}
               </div>
             ) : (
@@ -307,7 +280,7 @@ export const HomePage = () => {
                 <div className="w-16 h-16 rounded-full bg-[#EAF6FF] text-[#2563EB] flex items-center justify-center mx-auto border border-[#C1E5FF]">
                   <Search className="w-6 h-6" />
                 </div>
-                <h3 className="text-lg font-bold text-[#0F172A]">No opportunities found</h3>
+                <h3 className="text-lg font-bold text-[#0F2238]">No opportunities found</h3>
                 <p className="text-xs sm:text-sm text-[#64748B] max-w-sm mx-auto">
                   We couldn't find any opportunities matching your criteria. Try adjusting your search query or filters.
                 </p>
@@ -344,36 +317,19 @@ export const HomePage = () => {
                   </p>
                 </div>
 
-                <button
-                  onClick={() => {
-                    setSelectedType('all');
-                    setSelectedCategory('all');
-                    setActiveSearch('');
-                    setSearchQuery('');
-                    updateFiltersInUrl('all', 'all', '');
-                    setTimeout(() => {
-                      document.getElementById('explore-section')?.scrollIntoView({ behavior: 'smooth' });
-                    }, 50);
-                  }}
+                <Link
+                  to="/opportunities"
                   className="text-xs font-bold text-[#2563EB] hover:text-[#1D4ED8] transition flex items-center gap-1 self-start sm:self-auto"
                 >
                   <span>View All Opportunities</span>
                   <ArrowRight className="w-3.5 h-3.5" />
-                </button>
+                </Link>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-                <div className="lg:col-span-8 flex">
-                  {featuredLarge && (
-                    <EventCard event={featuredLarge} variant="featured_large" />
-                  )}
-                </div>
-
-                <div className="lg:col-span-4 flex flex-col gap-6">
-                  {featuredSmaller.map((ev) => (
-                    <EventCard key={ev.id} event={ev} variant="standard" />
-                  ))}
-                </div>
+              <div className="space-y-4 sm:space-y-5">
+                {events.filter(e => e.status !== 'draft').slice(0, 3).map((ev) => (
+                  <EventCard key={ev.id} event={ev} variant="horizontal" />
+                ))}
               </div>
             </section>
 
@@ -393,27 +349,18 @@ export const HomePage = () => {
                   </p>
                 </div>
 
-                <button
-                  onClick={() => {
-                    setSelectedType('club_event');
-                    setSelectedCategory('all');
-                    setActiveSearch('');
-                    setSearchQuery('');
-                    updateFiltersInUrl('club_event', 'all', '');
-                    setTimeout(() => {
-                      document.getElementById('explore-section')?.scrollIntoView({ behavior: 'smooth' });
-                    }, 50);
-                  }}
+                <Link
+                  to="/opportunities?type=club_event"
                   className="px-4 py-2 rounded-xl bg-white hover:bg-sky-50 text-xs font-bold text-[#0F172A] border border-sky-200 transition flex items-center gap-1.5 self-start sm:self-auto shadow-xs"
                 >
                   <span>All Club Events ({clubEvents.length})</span>
                   <ArrowRight className="w-3.5 h-3.5 text-[#2563EB]" />
-                </button>
+                </Link>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {clubEvents.map((ev) => (
-                  <EventCard key={ev.id} event={ev} variant="standard" />
+              <div className="space-y-4 sm:space-y-5">
+                {clubEvents.slice(0, 3).map((ev) => (
+                  <EventCard key={ev.id} event={ev} variant="horizontal" />
                 ))}
               </div>
             </section>
@@ -434,27 +381,18 @@ export const HomePage = () => {
                   </p>
                 </div>
 
-                <button
-                  onClick={() => {
-                    setSelectedType('external_opportunity');
-                    setSelectedCategory('all');
-                    setActiveSearch('');
-                    setSearchQuery('');
-                    updateFiltersInUrl('external_opportunity', 'all', '');
-                    setTimeout(() => {
-                      document.getElementById('explore-section')?.scrollIntoView({ behavior: 'smooth' });
-                    }, 50);
-                  }}
+                <Link
+                  to="/opportunities?type=external_opportunity"
                   className="px-4 py-2 rounded-xl bg-white hover:bg-sky-50 text-xs font-bold text-[#0F172A] border border-sky-200 transition flex items-center gap-1.5 self-start sm:self-auto shadow-xs"
                 >
                   <span>All External ({externalEvents.length})</span>
                   <ArrowRight className="w-3.5 h-3.5 text-[#2563EB]" />
-                </button>
+                </Link>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {externalEvents.map((ev) => (
-                  <EventCard key={ev.id} event={ev} variant="standard" />
+              <div className="space-y-4 sm:space-y-5">
+                {externalEvents.slice(0, 3).map((ev) => (
+                  <EventCard key={ev.id} event={ev} variant="horizontal" />
                 ))}
               </div>
             </section>
@@ -475,19 +413,10 @@ export const HomePage = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 pt-2">
                 {categories.map((cat) => (
-                  <button
+                  <Link
                     key={cat.name}
-                    onClick={() => {
-                      setSelectedCategory(cat.id);
-                      setSelectedType('all');
-                      setActiveSearch('');
-                      setSearchQuery('');
-                      updateFiltersInUrl('all', cat.id, '');
-                      setTimeout(() => {
-                        document.getElementById('explore-section')?.scrollIntoView({ behavior: 'smooth' });
-                      }, 50);
-                    }}
-                    className="group text-left p-6 rounded-2xl bg-white border border-sky-200 hover:border-[#2563EB] transition-all duration-300 flex flex-col justify-between hover:-translate-y-1 shadow-sky-card hover:shadow-sky-hover w-full"
+                    to={`/opportunities?category=${encodeURIComponent(cat.id)}`}
+                    className="group text-left p-6 rounded-2xl bg-white border border-sky-200 hover:border-[#2563EB] transition-all duration-300 flex flex-col justify-between hover:-translate-y-1 shadow-sky-card hover:shadow-sky-hover w-full cursor-pointer block"
                   >
                     <div className="space-y-4">
                       <div className="flex items-center justify-between">
@@ -500,10 +429,10 @@ export const HomePage = () => {
                       </div>
 
                       <div>
-                        <h3 className="text-base font-bold text-[#0F172A] group-hover:text-[#2563EB] transition-colors">
+                        <h3 className="text-base font-bold text-[#0F172A] group-hover:text-[#2563EB] transition-colors font-display">
                           {cat.name}
                         </h3>
-                        <p className="text-xs text-[#64748B] mt-1 leading-relaxed">
+                        <p className="text-xs text-[#64748B] mt-1 leading-relaxed font-medium">
                           {cat.desc}
                         </p>
                       </div>
@@ -513,7 +442,7 @@ export const HomePage = () => {
                       <span>Explore category</span>
                       <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
                     </div>
-                  </button>
+                  </Link>
                 ))}
               </div>
             </section>
@@ -534,22 +463,13 @@ export const HomePage = () => {
                 Every week, great hackathons, placement preparation workshops, and symposiums get buried in group chats, compressed posters, and dead Google Form links. T&P Club Opportunity Hub brings all campus workshops and verified external fests into one structured, searchable catalog with direct registration links.
               </p>
               <div className="pt-2 flex flex-wrap gap-3">
-                <button
-                  onClick={() => {
-                    setSelectedType('all');
-                    setSelectedCategory('all');
-                    setActiveSearch('');
-                    setSearchQuery('');
-                    updateFiltersInUrl('all', 'all', '');
-                    setTimeout(() => {
-                      document.getElementById('explore-section')?.scrollIntoView({ behavior: 'smooth' });
-                    }, 50);
-                  }}
+                <Link
+                  to="/opportunities"
                   className="px-6 py-3 rounded-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-bold text-xs transition shadow-md shadow-blue-500/25 inline-flex items-center gap-2"
                 >
                   <span>Browse All Active Events</span>
                   <ArrowRight className="w-3.5 h-3.5" />
-                </button>
+                </Link>
                 <Link
                   to="/about"
                   className="px-6 py-3 rounded-full bg-white hover:bg-sky-50 text-[#0F172A] font-bold text-xs border border-sky-200 transition"

@@ -47,9 +47,26 @@ export const CreateEventPage = () => {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const [uploadMode, setUploadMode] = useState('file'); // 'file' | 'url'
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        alert("Image file size should be less than 5MB.");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData(prev => ({ ...prev, poster: reader.result }));
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleSubmit = (e, status = 'published') => {
@@ -92,7 +109,7 @@ export const CreateEventPage = () => {
     setTimeout(() => {
       createEvent(newOpportunity);
       setIsSubmitting(false);
-      navigate('/staff/dashboard');
+      navigate('/');
     }, 400);
   };
 
@@ -109,11 +126,11 @@ export const CreateEventPage = () => {
       {/* Top Breadcrumb */}
       <div className="flex items-center justify-between">
         <Link
-          to="/staff/dashboard"
+          to="/"
           className="inline-flex items-center gap-2 text-xs font-bold text-[#5B7B9C] hover:text-[#0F2238] transition"
         >
           <ArrowLeft className="w-4 h-4 text-[#6AB0E3]" />
-          <span>Back to Organizer Dashboard</span>
+          <span>Back to Home</span>
         </Link>
       </div>
 
@@ -246,34 +263,111 @@ export const CreateEventPage = () => {
                 </div>
 
                 <div>
-                  <label className="block text-[#0F2238] font-bold mb-1.5">
-                    Poster Image URL *
-                  </label>
-                  <input
-                    type="url"
-                    name="poster"
-                    required
-                    value={formData.poster}
-                    onChange={handleChange}
-                    placeholder="https://images.unsplash.com/..."
-                    className="w-full px-4 py-3 rounded-xl bg-[#EAF6FF] border border-[#C1E5FF] text-[#0F2238] text-xs focus:outline-none focus:border-[#6AB0E3]"
-                  />
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-[#0F2238] font-bold">
+                      Poster Image *
+                    </label>
+                    <div className="flex items-center gap-1.5 text-[11px]">
+                      <button
+                        type="button"
+                        onClick={() => setUploadMode('file')}
+                        className={`px-2.5 py-0.5 rounded-md font-bold transition cursor-pointer ${
+                          uploadMode === 'file'
+                            ? 'bg-[#6AB0E3] text-white shadow-xs'
+                            : 'bg-[#EAF6FF] text-[#5B7B9C] border border-[#C1E5FF]'
+                        }`}
+                      >
+                        📁 Upload File
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setUploadMode('url')}
+                        className={`px-2.5 py-0.5 rounded-md font-bold transition cursor-pointer ${
+                          uploadMode === 'url'
+                            ? 'bg-[#6AB0E3] text-white shadow-xs'
+                            : 'bg-[#EAF6FF] text-[#5B7B9C] border border-[#C1E5FF]'
+                        }`}
+                      >
+                        🔗 Web URL
+                      </button>
+                    </div>
+                  </div>
+
+                  {uploadMode === 'file' ? (
+                    <div className="space-y-2">
+                      <div className="border-2 border-dashed border-[#C1E5FF] hover:border-[#6AB0E3] rounded-2xl p-4 text-center bg-[#EAF6FF]/60 hover:bg-[#EAF6FF] transition relative group cursor-pointer">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleFileUpload}
+                          className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                        />
+                        <div className="flex flex-col items-center justify-center space-y-1">
+                          <Upload className="w-6 h-6 text-[#6AB0E3] group-hover:scale-110 transition-transform" />
+                          <p className="text-xs font-bold text-[#0F2238]">
+                            Click or Drag & Drop Image File
+                          </p>
+                          <p className="text-[10px] text-[#5B7B9C]">
+                            PNG, JPG, WEBP or SVG (Max 5MB)
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <input
+                      type="url"
+                      name="poster"
+                      required={!formData.poster}
+                      value={formData.poster}
+                      onChange={handleChange}
+                      placeholder="https://images.unsplash.com/..."
+                      className="w-full px-4 py-3 rounded-xl bg-[#EAF6FF] border border-[#C1E5FF] text-[#0F2238] text-xs focus:outline-none focus:border-[#6AB0E3]"
+                    />
+                  )}
                 </div>
               </div>
 
-              {/* Poster Presets */}
-              <div className="flex flex-wrap items-center gap-2 pt-1">
-                <span className="text-[11px] text-[#5B7B9C] font-semibold">Quick Poster Presets:</span>
-                {samplePosters.map((p) => (
-                  <button
-                    key={p.label}
-                    type="button"
-                    onClick={() => setFormData(prev => ({ ...prev, poster: p.url }))}
-                    className="px-2.5 py-1 rounded-lg bg-[#EAF6FF] hover:bg-[#C1E5FF] text-[11px] text-[#0F2238] transition font-bold border border-[#C1E5FF]"
-                  >
-                    {p.label}
-                  </button>
-                ))}
+              {/* Poster Presets & Live Image Preview */}
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-[11px] text-[#5B7B9C] font-semibold">Quick Poster Presets:</span>
+                  {samplePosters.map((p) => (
+                    <button
+                      key={p.label}
+                      type="button"
+                      onClick={() => {
+                        setFormData(prev => ({ ...prev, poster: p.url }));
+                        setUploadMode('url');
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-[#EAF6FF] hover:bg-[#C1E5FF] text-[11px] text-[#0F2238] transition font-bold border border-[#C1E5FF] cursor-pointer"
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+
+                {formData.poster && (
+                  <div className="flex items-center gap-3 p-3 rounded-2xl bg-[#EAF6FF] border border-[#C1E5FF] animate-fade-in">
+                    <img
+                      src={formData.poster}
+                      alt="Poster Preview"
+                      className="w-14 h-14 rounded-xl object-cover border border-[#C1E5FF] shadow-xs flex-shrink-0"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold text-[#0F2238]">Poster Ready for Upload</p>
+                      <p className="text-[10px] text-[#5B7B9C] truncate">
+                        {formData.poster.startsWith('data:') ? 'Local Image File Selected ✓' : formData.poster}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, poster: '' }))}
+                      className="text-[11px] text-rose-600 font-bold hover:underline px-2 cursor-pointer"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div>

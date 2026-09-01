@@ -22,14 +22,9 @@ export const LoginPage = () => {
   const handleDirectLogin = (userEmail, userPassword, targetRole) => {
     setIsLoading(true);
     setTimeout(() => {
-      const loggedIn = login(userEmail, userPassword);
+      login(userEmail, userPassword);
       setIsLoading(false);
-
-      if (targetRole === 'student' || loggedIn.role === 'student') {
-        navigate('/');
-      } else {
-        navigate('/staff/dashboard');
-      }
+      navigate('/');
     }, 400);
   };
 
@@ -88,21 +83,32 @@ export const LoginPage = () => {
             </button>
 
             {/* Organizer Card */}
-            <button
-              onClick={() => handleDirectLogin('staff@college.edu', 'staff123', 'staff')}
-              className="p-4 rounded-2xl bg-[#EAF6FF] hover:bg-[#C1E5FF] border border-[#C1E5FF] text-left transition flex items-center justify-between group shadow-xs"
-            >
+            <div className="clay-card p-4 flex flex-col sm:flex-row items-center justify-between gap-3 border border-[#C1E5FF]">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-xl bg-white text-[#3F88BF] shadow-xs">
+                <div className="p-2.5 rounded-xl bg-[#EAF6FF] text-[#6AB0E3] shadow-xs">
                   <Briefcase className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-[#0F2238]">T&P Organizer Portal</p>
-                  <p className="text-[11px] text-[#5B7B9C] font-medium">Dr. K. Ramanathan (T&P Convenor)</p>
+                  <p className="text-xs font-bold text-[#0F2238]">T&P Faculty & Staff Portal</p>
+                  <p className="text-[11px] text-[#5B7B9C] font-medium">Post & Edit Events, Manage Turnout</p>
                 </div>
               </div>
-              <ArrowRight className="w-4 h-4 text-[#5B7B9C] group-hover:text-[#6AB0E3] group-hover:translate-x-1 transition-transform" />
-            </button>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <button
+                  onClick={() => handleDirectLogin('staff@college.edu', 'staff123', 'staff')}
+                  className="flex-1 sm:flex-none px-3 py-2 rounded-xl bg-[#EAF6FF] hover:bg-[#C1E5FF] text-[#0F2238] font-bold text-xs transition border border-[#C1E5FF]"
+                >
+                  1-Click
+                </button>
+                <Link
+                  to="/staff/login"
+                  className="flex-1 sm:flex-none px-3.5 py-2 rounded-xl clay-btn-primary text-white font-bold text-xs flex items-center justify-center gap-1"
+                >
+                  <span>Staff Portal</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
 

@@ -21,8 +21,21 @@ export const storageService = {
     if (!localStorage.getItem(STORAGE_KEYS.CURRENT_USER)) {
       localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(mockUsers.student));
     }
-    if (!localStorage.getItem(STORAGE_KEYS.EVENTS)) {
+    const storedEventsRaw = localStorage.getItem(STORAGE_KEYS.EVENTS);
+    if (!storedEventsRaw) {
       localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(initialEvents));
+    } else {
+      try {
+        const existingEvents = JSON.parse(storedEventsRaw);
+        const existingIds = new Set(existingEvents.map(e => String(e.id)));
+        const missingEvents = initialEvents.filter(e => !existingIds.has(String(e.id)));
+        if (missingEvents.length > 0) {
+          const merged = [...existingEvents, ...missingEvents];
+          localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(merged));
+        }
+      } catch (e) {
+        localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(initialEvents));
+      }
     }
     if (!localStorage.getItem(STORAGE_KEYS.OD_REQUESTS)) {
       localStorage.setItem(STORAGE_KEYS.OD_REQUESTS, JSON.stringify(initialODRequests));

@@ -14,6 +14,7 @@ import { ProtectedRoute } from './components/layout/ProtectedRoute';
 
 // Public Pages
 import { HomePage } from './pages/public/HomePage';
+import { EventsPage } from './pages/public/EventsPage';
 import { EventDetailsPage } from './pages/public/EventDetailsPage';
 import { CategoriesPage } from './pages/public/CategoriesPage';
 import { AboutPage } from './pages/public/AboutPage';
@@ -21,6 +22,7 @@ import { NotFoundPage } from './pages/public/NotFoundPage';
 
 // Auth Pages
 import { LoginPage } from './pages/auth/LoginPage';
+import { StaffLoginPage } from './pages/auth/StaffLoginPage';
 import { UnauthorizedPage } from './pages/auth/UnauthorizedPage';
 
 // Student Pages
@@ -104,6 +106,21 @@ const PortalLayout = ({ roleRequired }) => {
   );
 };
 
+// Staff Portal Layout (Uses Old Site Header PublicNavbar, No Sidebar, No Dashboard Bar)
+const StaffPublicLayout = () => {
+  return (
+    <ProtectedRoute allowedRoles={['staff']}>
+      <div className="min-h-screen flex flex-col bg-transparent text-[#0F2238] selection:bg-[#6AB0E3] selection:text-white">
+        <PublicNavbar />
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
+          <Outlet />
+        </main>
+        <Footer />
+      </div>
+    </ProtectedRoute>
+  );
+};
+
 export default function App() {
   return (
     <ToastProvider>
@@ -114,13 +131,14 @@ export default function App() {
               {/* Public Website Routes */}
               <Route element={<PublicLayout />}>
                 <Route path="/" element={<HomePage />} />
-                <Route path="/events" element={<Navigate to="/#explore-section" replace />} />
-                <Route path="/opportunities" element={<Navigate to="/#explore-section" replace />} />
+                <Route path="/events" element={<EventsPage />} />
+                <Route path="/opportunities" element={<EventsPage />} />
                 <Route path="/events/:id" element={<EventDetailsPage />} />
                 <Route path="/opportunities/:id" element={<EventDetailsPage />} />
                 <Route path="/categories" element={<CategoriesPage />} />
                 <Route path="/about" element={<AboutPage />} />
                 <Route path="/login" element={<LoginPage />} />
+                <Route path="/staff/login" element={<StaffLoginPage />} />
                 <Route path="/unauthorized" element={<UnauthorizedPage />} />
                 <Route path="*" element={<NotFoundPage />} />
               </Route>
@@ -137,10 +155,11 @@ export default function App() {
                 <Route path="profile" element={<StudentProfilePage />} />
               </Route>
 
-              {/* Staff / Organizer Portal Routes */}
-              <Route path="/staff" element={<PortalLayout roleRequired="staff" />}>
-                <Route path="dashboard" element={<StaffDashboard />} />
+              {/* Staff / Organizer Pages (Using Old Website Header, No Sidebar) */}
+              <Route path="/staff" element={<StaffPublicLayout />}>
+                <Route path="dashboard" element={<StaffEventsPage />} />
                 <Route path="events" element={<StaffEventsPage />} />
+                <Route path="my-events" element={<StaffEventsPage />} />
                 <Route path="events/create" element={<CreateEventPage />} />
                 <Route path="events/:id/edit" element={<EditEventPage />} />
                 <Route path="od" element={<StaffODRequestsPage />} />

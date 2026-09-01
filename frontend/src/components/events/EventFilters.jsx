@@ -6,7 +6,7 @@ export const EventFilters = ({
   onFilterChange,
   onReset,
   categories = ['Career', 'Placement', 'Aptitude', 'Technical', 'Workshop', 'Hackathon', 'Symposium', 'Soft Skills', 'Competition'],
-  cities = ['On-Campus', 'Online', 'Namakkal', 'Tiruchengode', 'Coimbatore', 'Sathyamangalam']
+  cities = ['On-Campus', 'Online', 'Namakkal', 'Tiruchengode', 'Coimbatore', 'Sathyamangalam', 'Chennai', 'Salem', 'Tiruchirappalli']
 }) => {
   return (
     <div className="bg-white rounded-3xl border border-[#C1E5FF] p-5 sm:p-6 shadow-sky-card space-y-4">

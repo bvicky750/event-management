@@ -24,8 +24,8 @@ export const StaffSidebar = ({ isOpen, onClose }) => {
 
   const navItems = [
     { name: 'Dashboard Overview', path: '/staff/dashboard', icon: LayoutDashboard },
-    { name: 'Post Opportunity', path: '/staff/events/create', icon: CalendarPlus },
-    { name: 'All Opportunities', path: '/staff/events', icon: Calendar },
+    { name: 'My Posted Events', path: '/staff/events', icon: Calendar, badge: `${events.length}`, badgeColor: 'bg-[#EAF6FF] text-[#6AB0E3] border border-[#C1E5FF] font-mono' },
+    { name: 'Post New Event', path: '/staff/events/create', icon: CalendarPlus },
     { name: 'Student Directory', path: '/staff/students', icon: GraduationCap },
     { name: 'Reports & Traffic', path: '/staff/reports', icon: BarChart3 },
   ];

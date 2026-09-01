@@ -9,7 +9,8 @@ import {
   MapPin,
   Clock,
   Tag,
-  Link2
+  Link2,
+  Upload
 } from 'lucide-react';
 
 export const EditEventPage = () => {
@@ -84,9 +85,26 @@ export const EditEventPage = () => {
     );
   }
 
+  const [uploadMode, setUploadMode] = useState('file'); // 'file' | 'url'
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleFileUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        alert("Image file size should be less than 5MB.");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData(prev => ({ ...prev, poster: reader.result }));
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const handleSubmit = (e) => {
@@ -126,7 +144,7 @@ export const EditEventPage = () => {
     setTimeout(() => {
       updateEvent(existingEvent.id, updatedData);
       setIsSubmitting(false);
-      navigate('/staff/dashboard');
+      navigate('/staff/events');
     }, 400);
   };
 
@@ -134,24 +152,24 @@ export const EditEventPage = () => {
     <div className="max-w-4xl mx-auto space-y-8 pb-16">
       <div className="flex items-center justify-between">
         <Link
-          to="/staff/dashboard"
+          to="/staff/events"
           className="inline-flex items-center gap-2 text-xs font-bold text-[#5B7B9C] hover:text-[#0F2238] transition"
         >
           <ArrowLeft className="w-4 h-4 text-[#6AB0E3]" />
-          <span>Back to Organizer Dashboard</span>
+          <span>Back to My Posted Events</span>
         </Link>
       </div>
 
-      <div className="rounded-3xl bg-white border border-[#C1E5FF] p-6 sm:p-10 shadow-sky-card space-y-8">
+      <div className="clay-card p-6 sm:p-10 space-y-8">
         <div>
-          <span className="px-3 py-1 rounded-full bg-[#EAF6FF] text-[#6AB0E3] text-xs font-mono font-bold uppercase border border-[#C1E5FF]">
-            Edit Opportunity
+          <span className="clay-badge px-3 py-1 text-xs font-mono font-bold uppercase">
+            Faculty Event Editor
           </span>
           <h1 className="text-2xl sm:text-3xl font-black text-[#0F2238] font-display tracking-tight mt-2">
-            Modify Opportunity Details
+            Edit Posted Event Details
           </h1>
           <p className="text-xs sm:text-sm text-[#5B7B9C] mt-1 font-medium">
-            Update deadlines, external registration links, or venue details.
+            Update deadlines, venue allocations, external forms, or coordinator details for your event.
           </p>
         </div>
 
@@ -261,15 +279,85 @@ export const EditEventPage = () => {
               </div>
 
               <div>
-                <label className="block text-[#0F2238] font-bold mb-1.5">Poster URL *</label>
-                <input
-                  type="url"
-                  name="poster"
-                  required
-                  value={formData.poster}
-                  onChange={handleChange}
-                  className="w-full px-4 py-3 rounded-xl bg-[#EAF6FF] border border-[#C1E5FF] text-[#0F2238] text-xs focus:outline-none focus:border-[#6AB0E3]"
-                />
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-[#0F2238] font-bold">Poster Image *</label>
+                  <div className="flex items-center gap-1.5 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() => setUploadMode('file')}
+                      className={`px-2.5 py-0.5 rounded-md font-bold transition cursor-pointer ${
+                        uploadMode === 'file'
+                          ? 'bg-[#6AB0E3] text-white shadow-xs'
+                          : 'bg-[#EAF6FF] text-[#5B7B9C] border border-[#C1E5FF]'
+                      }`}
+                    >
+                      📁 Upload File
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setUploadMode('url')}
+                      className={`px-2.5 py-0.5 rounded-md font-bold transition cursor-pointer ${
+                        uploadMode === 'url'
+                          ? 'bg-[#6AB0E3] text-white shadow-xs'
+                          : 'bg-[#EAF6FF] text-[#5B7B9C] border border-[#C1E5FF]'
+                      }`}
+                    >
+                      🔗 Web URL
+                    </button>
+                  </div>
+                </div>
+
+                {uploadMode === 'file' ? (
+                  <div className="border-2 border-dashed border-[#C1E5FF] hover:border-[#6AB0E3] rounded-2xl p-4 text-center bg-[#EAF6FF]/60 hover:bg-[#EAF6FF] transition relative group cursor-pointer">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFileUpload}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                    />
+                    <div className="flex flex-col items-center justify-center space-y-1">
+                      <Upload className="w-6 h-6 text-[#6AB0E3] group-hover:scale-110 transition-transform" />
+                      <p className="text-xs font-bold text-[#0F2238]">
+                        Click or Drag & Drop Image File
+                      </p>
+                      <p className="text-[10px] text-[#5B7B9C]">
+                        PNG, JPG, WEBP or SVG (Max 5MB)
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <input
+                    type="url"
+                    name="poster"
+                    required={!formData.poster}
+                    value={formData.poster}
+                    onChange={handleChange}
+                    className="w-full px-4 py-3 rounded-xl bg-[#EAF6FF] border border-[#C1E5FF] text-[#0F2238] text-xs focus:outline-none focus:border-[#6AB0E3]"
+                  />
+                )}
+
+                {formData.poster && (
+                  <div className="flex items-center gap-3 p-3 mt-2 rounded-2xl bg-[#EAF6FF] border border-[#C1E5FF]">
+                    <img
+                      src={formData.poster}
+                      alt="Poster Preview"
+                      className="w-14 h-14 rounded-xl object-cover border border-[#C1E5FF] shadow-xs flex-shrink-0"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold text-[#0F2238]">Poster Image Ready</p>
+                      <p className="text-[10px] text-[#5B7B9C] truncate">
+                        {formData.poster.startsWith('data:') ? 'Local Image File Uploaded ✓' : formData.poster}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, poster: '' }))}
+                      className="text-[11px] text-rose-600 font-bold hover:underline px-2 cursor-pointer"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -387,7 +475,7 @@ export const EditEventPage = () => {
           {/* Action Buttons */}
           <div className="flex items-center justify-end gap-3 pt-6 border-t border-[#EAF6FF]">
             <Link
-              to="/staff/dashboard"
+              to="/staff/events"
               className="px-5 py-3 rounded-xl bg-[#EAF6FF] hover:bg-[#C1E5FF] text-[#0F2238] font-bold text-xs transition border border-[#C1E5FF]"
             >
               Cancel
@@ -395,10 +483,10 @@ export const EditEventPage = () => {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-6 py-3 rounded-xl bg-[#6AB0E3] hover:bg-[#559FD4] text-white font-bold text-xs transition shadow-md shadow-[#6AB0E3]/20 flex items-center gap-2"
+              className="clay-btn-primary px-6 py-3 font-bold text-xs flex items-center gap-2 cursor-pointer shadow-md"
             >
               <CheckCircle2 className="w-4 h-4" />
-              <span>{isSubmitting ? 'Saving...' : 'Save Changes'}</span>
+              <span>{isSubmitting ? 'Saving Changes...' : 'Save Changes'}</span>
             </button>
           </div>
         </form>

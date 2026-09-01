@@ -8,8 +8,8 @@
   }
   html, body {
     background-image: url('/sky_hero_bg.jpg');
-    background-attachment: fixed;
-    background-position: center bottom;
+    background-attachment: scroll;
+    background-position: center top;
     background-size: cover;
     background-repeat: no-repeat;
     background-color: #EAF6FF;
@@ -104,4 +104,83 @@
 .animate-gentle-bounce {
   animation: gentleBounce 2.5s ease-in-out infinite;
 }
+
+/* Claymorphism & Clean Card Styling Elements */
+.clay-card {
+  background: #ffffff;
+  border-radius: 1.5rem;
+  border: 1px solid #C1E5FF;
+  box-shadow: 0 4px 20px -2px rgba(15, 34, 56, 0.05), 0 2px 6px -1px rgba(106, 176, 227, 0.1);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.clay-card-interactive {
+  background: #ffffff;
+  border-radius: 1.5rem;
+  border: 1px solid #C1E5FF;
+  box-shadow: 0 4px 20px -2px rgba(15, 34, 56, 0.05), 0 2px 6px -1px rgba(106, 176, 227, 0.1);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.clay-card-interactive:hover {
+  transform: translateY(-2px);
+  border-color: #6AB0E3;
+  box-shadow: 0 10px 25px -3px rgba(15, 34, 56, 0.08), 0 4px 12px -2px rgba(106, 176, 227, 0.18);
+}
+
+.clay-btn-primary {
+  background: linear-gradient(135deg, #6AB0E3 0%, #4A96CE 100%);
+  color: #ffffff;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 12px rgba(106, 176, 227, 0.3);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.clay-btn-primary:hover {
+  background: linear-gradient(135deg, #59A2D8 0%, #3F88BF 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(106, 176, 227, 0.4);
+}
+
+.clay-btn-secondary {
+  background: #EAF6FF;
+  color: #0F2238;
+  border-radius: 1rem;
+  border: 1px solid #C1E5FF;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.clay-btn-secondary:hover {
+  background: #D9EEFF;
+  border-color: #9CD5FF;
+  transform: translateY(-1px);
+}
+
+.clay-inset {
+  background: #F4FAFF;
+  border-radius: 1.25rem;
+  border: 1px solid #C1E5FF;
+}
+
+.clay-badge {
+  background: #EAF6FF;
+  color: #0F2238;
+  border-radius: 9999px;
+  border: 1px solid #C1E5FF;
+}
+
+.clay-input {
+  background: #ffffff;
+  border-radius: 0.85rem;
+  border: 1px solid #C1E5FF;
+  transition: all 0.2s ease;
+}
+
+.clay-input:focus {
+  background: #ffffff;
+  border-color: #6AB0E3;
+  box-shadow: 0 0 0 3px rgba(106, 176, 227, 0.2);
+}
+
 

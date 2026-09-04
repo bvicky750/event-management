@@ -1,7 +1,21 @@
+import { api } from './apiClient';
 import { storageService } from './storageService';
 import { initialRegistrations, initialPastParticipation } from '../data/registrations';
 
 export const registrationService = {
+  async fetchAllRegistrations() {
+    try {
+      const res = await api.get('/registrations');
+      if (res && res.data && Array.isArray(res.data)) {
+        storageService.setItem(storageService.KEYS.REGISTRATIONS, res.data);
+        return res.data;
+      }
+    } catch (err) {
+      console.warn('[RegistrationService] Fetch registrations API failed, using cache:', err.message);
+    }
+    return this.getAllRegistrations();
+  },
+
   getAllRegistrations() {
     storageService.initStorage();
     return storageService.getItem(storageService.KEYS.REGISTRATIONS, initialRegistrations);
@@ -29,7 +43,20 @@ export const registrationService = {
     );
   },
 
-  registerForEvent(registrationData) {
+  async registerForEvent(registrationData) {
+    try {
+      const res = await api.post('/registrations', registrationData);
+      if (res && res.data) {
+        const list = this.getAllRegistrations();
+        const updated = [res.data, ...list];
+        storageService.setItem(storageService.KEYS.REGISTRATIONS, updated);
+        return res.data;
+      }
+    } catch (err) {
+      console.warn('[RegistrationService] Register API failed, using local registration:', err.message);
+    }
+
+    // Local fallback
     const list = this.getAllRegistrations();
     const count = list.length + 1;
     const regNum = `REG-DEMO-2026-${String(count).padStart(3, '0')}`;
@@ -58,25 +85,16 @@ export const registrationService = {
       storageService.setItem(storageService.KEYS.EVENTS, events);
     }
 
-    // Add notification
-    const notifs = storageService.getItem(storageService.KEYS.NOTIFICATIONS, []);
-    const newNotif = {
-      id: `notif_${Date.now()}`,
-      recipientRole: "student",
-      recipientId: registrationData.studentId,
-      title: "Registration Confirmed! 🎟️",
-      message: `You have successfully registered for ${registrationData.eventTitle}. Your Pass ID is ${regNum}.`,
-      type: "success",
-      timestamp: formattedDate,
-      read: false,
-      link: `/student/registrations/${newReg.id}`
-    };
-    storageService.setItem(storageService.KEYS.NOTIFICATIONS, [newNotif, ...notifs]);
-
     return newReg;
   },
 
-  cancelRegistration(id) {
+  async cancelRegistration(id) {
+    try {
+      await api.post(`/registrations/${id}/cancel`);
+    } catch (e) {
+      console.warn('[RegistrationService] Cancel API failed, updating locally');
+    }
+
     const list = this.getAllRegistrations();
     const index = list.findIndex(r => String(r.id) === String(id));
     if (index !== -1) {
@@ -87,9 +105,20 @@ export const registrationService = {
     return null;
   },
 
-  getPastParticipation(studentId) {
+  async getPastParticipation(studentId) {
+    try {
+      const res = await api.get(`/registrations/past/${studentId}`);
+      if (res && res.data && Array.isArray(res.data)) {
+        return res.data;
+      }
+    } catch (e) {
+      // Local fallback
+    }
+
     storageService.initStorage();
     const past = storageService.getItem(storageService.KEYS.PAST_PARTICIPATION, initialPastParticipation);
     return past.filter(p => p.studentId === studentId);
   }
 };
+
+export default registrationService;

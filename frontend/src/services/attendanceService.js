@@ -1,8 +1,22 @@
+import { api } from './apiClient';
 import { storageService } from './storageService';
 import { initialAttendanceRecords } from '../data/attendance';
 import { registrationService } from './registrationService';
 
 export const attendanceService = {
+  async fetchAllAttendance() {
+    try {
+      const res = await api.get('/attendance');
+      if (res && res.data && Array.isArray(res.data)) {
+        storageService.setItem(storageService.KEYS.ATTENDANCE, res.data);
+        return res.data;
+      }
+    } catch (err) {
+      console.warn('[AttendanceService] Fetch attendance API failed, using cache:', err.message);
+    }
+    return this.getAllAttendance();
+  },
+
   getAllAttendance() {
     storageService.initStorage();
     return storageService.getItem(storageService.KEYS.ATTENDANCE, initialAttendanceRecords);
@@ -13,16 +27,43 @@ export const attendanceService = {
     return list.filter(a => String(a.eventId) === String(eventId) || String(a.eventId) === `evt_${eventId}`);
   },
 
-  recordScan(eventId, qrToken, staffName = "Dr. K. Ramanathan") {
+  async recordScan(eventId, qrToken, staffName = "Dr. K. Ramanathan") {
+    try {
+      const res = await api.post('/attendance/scan', {
+        eventId,
+        qrToken,
+        staffName
+      });
+
+      if (res && res.success) {
+        // Update local cache
+        const attendance = this.getAllAttendance();
+        if (res.record) {
+          storageService.setItem(storageService.KEYS.ATTENDANCE, [res.record, ...attendance]);
+        }
+        return res;
+      }
+    } catch (err) {
+      if (err.data && err.data.errorType) {
+        return {
+          success: false,
+          errorType: err.data.errorType,
+          message: err.data.message || err.message,
+          student: err.data.student,
+          checkInTime: err.data.checkInTime
+        };
+      }
+      console.warn('[AttendanceService] Scan API failed, falling back to local scan check:', err.message);
+    }
+
+    // Local fallback check
     const registrations = registrationService.getAllRegistrations();
-    // find matching registration
     const reg = registrations.find(
       r => (r.qrCodeToken === qrToken || r.registrationNumber === qrToken || r.id === qrToken) &&
            (String(r.eventId) === String(eventId) || String(r.eventId) === `evt_${eventId}`)
     );
 
     if (!reg) {
-      // Check if registration exists for another event
       const wrongEventReg = registrations.find(r => r.qrCodeToken === qrToken || r.registrationNumber === qrToken);
       if (wrongEventReg) {
         return {
@@ -38,7 +79,6 @@ export const attendanceService = {
       };
     }
 
-    // Check if already checked in
     const attendance = this.getAllAttendance();
     const alreadyPresent = attendance.find(
       a => (String(a.eventId) === String(eventId) || String(a.eventId) === `evt_${eventId}`) &&
@@ -55,7 +95,6 @@ export const attendanceService = {
       };
     }
 
-    // Success check-in!
     const now = new Date();
     const checkInTimeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     const dateStr = now.toISOString().split('T')[0];
@@ -76,7 +115,6 @@ export const attendanceService = {
     const updatedAttendance = [newRecord, ...attendance];
     storageService.setItem(storageService.KEYS.ATTENDANCE, updatedAttendance);
 
-    // Update registration check-in status
     const regIndex = registrations.findIndex(r => r.id === reg.id);
     if (regIndex !== -1) {
       registrations[regIndex].attendanceStatus = "PRESENT";
@@ -92,7 +130,16 @@ export const attendanceService = {
     };
   },
 
-  getEventAttendanceMetrics(eventId, totalCapacity = 150) {
+  async getEventAttendanceMetrics(eventId, totalCapacity = 150) {
+    try {
+      const res = await api.get(`/attendance/metrics/${eventId}`);
+      if (res && res.data) {
+        return res.data;
+      }
+    } catch (e) {
+      // Local calculation
+    }
+
     const registrations = registrationService.getRegistrationsByEvent(eventId);
     const presentRecords = this.getAttendanceByEvent(eventId);
 
@@ -134,3 +181,5 @@ export const attendanceService = {
     document.body.removeChild(link);
   }
 };
+
+export default attendanceService;

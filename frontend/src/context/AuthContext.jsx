@@ -15,15 +15,20 @@ export const AuthProvider = ({ children }) => {
     setLoading(false);
   }, []);
 
-  const login = (email, password) => {
-    const loggedUser = authService.login(email, password);
-    setUser(loggedUser);
-    showToast(`Welcome, ${loggedUser.name}! Logged in as ${loggedUser.role.toUpperCase()}`, 'success');
-    return loggedUser;
+  const login = async (email, password) => {
+    try {
+      const loggedUser = await authService.login(email, password);
+      setUser(loggedUser);
+      showToast(`Welcome, ${loggedUser.name}! Logged in as ${loggedUser.role.toUpperCase()}`, 'success');
+      return loggedUser;
+    } catch (err) {
+      showToast(err.message || 'Login failed', 'error');
+      throw err;
+    }
   };
 
-  const switchRole = (role) => {
-    const switchedUser = authService.switchRole(role);
+  const switchRole = async (role) => {
+    const switchedUser = await authService.switchRole(role);
     setUser(switchedUser);
     showToast(`Switched active demo role to ${role.toUpperCase()}: ${switchedUser.name}`, 'info');
     return switchedUser;
@@ -35,8 +40,8 @@ export const AuthProvider = ({ children }) => {
     showToast('Logged out successfully', 'info');
   };
 
-  const updateProfile = (profileData) => {
-    const updated = authService.updateProfile(profileData);
+  const updateProfile = async (profileData) => {
+    const updated = await authService.updateProfile(profileData);
     setUser(updated);
     showToast('Profile updated successfully!', 'success');
     return updated;
@@ -66,3 +71,5 @@ export const useAuth = () => {
   if (!context) throw new Error('useAuth must be used within AuthProvider');
   return context;
 };
+
+export default AuthContext;

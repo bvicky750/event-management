@@ -1,10 +1,36 @@
+import { api } from './apiClient';
 import { storageService } from './storageService';
 import { initialEvents } from '../data/events';
 
 export const eventService = {
+  async fetchAllEvents(params = {}) {
+    try {
+      const res = await api.get('/events', params);
+      if (res && res.data && Array.isArray(res.data)) {
+        storageService.setItem(storageService.KEYS.EVENTS, res.data);
+        return res.data;
+      }
+    } catch (err) {
+      console.warn('[EventService] Fetch events API failed, using cached events:', err.message);
+    }
+    return this.getAllEvents();
+  },
+
   getAllEvents() {
     storageService.initStorage();
     return storageService.getItem(storageService.KEYS.EVENTS, initialEvents);
+  },
+
+  async fetchEventById(id) {
+    try {
+      const res = await api.get(`/events/${id}`);
+      if (res && res.data) {
+        return res.data;
+      }
+    } catch (err) {
+      console.warn(`[EventService] Fetch event ${id} API failed, checking cache:`, err.message);
+    }
+    return this.getEventById(id);
   },
 
   getEventById(id) {
@@ -20,7 +46,13 @@ export const eventService = {
     return this.getAllEvents().filter(e => e.type === "external_opportunity" && e.status !== "draft");
   },
 
-  trackRegistrationClick(id) {
+  async trackRegistrationClick(id) {
+    try {
+      await api.post(`/events/${id}/track-click`);
+    } catch (e) {
+      // Local fallback
+    }
+
     const events = this.getAllEvents();
     const index = events.findIndex(e => String(e.id) === String(id));
     if (index !== -1) {
@@ -34,7 +66,13 @@ export const eventService = {
     return 0;
   },
 
-  trackEventView(id) {
+  async trackEventView(id) {
+    try {
+      await api.post(`/events/${id}/track-view`);
+    } catch (e) {
+      // Local fallback
+    }
+
     const events = this.getAllEvents();
     const index = events.findIndex(e => String(e.id) === String(id));
     if (index !== -1) {
@@ -48,7 +86,19 @@ export const eventService = {
     return 0;
   },
 
-  createEvent(eventData) {
+  async createEvent(eventData) {
+    try {
+      const res = await api.post('/events', eventData);
+      if (res && res.data) {
+        const events = this.getAllEvents();
+        storageService.setItem(storageService.KEYS.EVENTS, [res.data, ...events]);
+        return res.data;
+      }
+    } catch (err) {
+      console.warn('[EventService] Create event API failed, saving locally:', err.message);
+    }
+
+    // Local fallback
     const events = this.getAllEvents();
     const newId = eventData.type === "club_event" ? `tp_evt_${Date.now()}` : `ext_evt_${Date.now()}`;
     const newEvent = {
@@ -66,7 +116,22 @@ export const eventService = {
     return newEvent;
   },
 
-  updateEvent(id, updatedData) {
+  async updateEvent(id, updatedData) {
+    try {
+      const res = await api.put(`/events/${id}`, updatedData);
+      if (res && res.data) {
+        const events = this.getAllEvents();
+        const index = events.findIndex(e => String(e.id) === String(id));
+        if (index !== -1) {
+          events[index] = res.data;
+          storageService.setItem(storageService.KEYS.EVENTS, events);
+        }
+        return res.data;
+      }
+    } catch (err) {
+      console.warn(`[EventService] Update event ${id} API failed, updating locally:`, err.message);
+    }
+
     const events = this.getAllEvents();
     const index = events.findIndex(e => String(e.id) === String(id));
     if (index !== -1) {
@@ -77,7 +142,13 @@ export const eventService = {
     return null;
   },
 
-  deleteEvent(id) {
+  async deleteEvent(id) {
+    try {
+      await api.delete(`/events/${id}`);
+    } catch (err) {
+      console.warn(`[EventService] Delete event ${id} API failed, deleting locally:`, err.message);
+    }
+
     const events = this.getAllEvents();
     const updated = events.filter(e => String(e.id) !== String(id));
     storageService.setItem(storageService.KEYS.EVENTS, updated);
@@ -87,24 +158,20 @@ export const eventService = {
   searchAndFilterEvents({ query = '', type = 'all', category = '', city = '', fee = 'all', sort = 'upcoming' }) {
     let list = this.getAllEvents().filter(e => e.status !== "draft");
 
-    // Filter by Type
     if (type && type !== 'all') {
       list = list.filter(e => e.type === type);
     }
 
-    // Filter by Category
     if (category && category !== 'all') {
       list = list.filter(e => e.category?.toLowerCase() === category.toLowerCase());
     }
 
-    // Filter by Fee
     if (fee === 'free') {
       list = list.filter(e => !e.registrationFee || e.registrationFee === 0);
     } else if (fee === 'paid') {
       list = list.filter(e => e.registrationFee && e.registrationFee > 0);
     }
 
-    // Filter by Query
     if (query.trim()) {
       const q = query.toLowerCase();
       list = list.filter(e =>
@@ -118,12 +185,10 @@ export const eventService = {
       );
     }
 
-    // Filter by City
     if (city && city !== 'all') {
       list = list.filter(e => e.city?.toLowerCase() === city.toLowerCase());
     }
 
-    // Sorting
     if (sort === 'upcoming') {
       list.sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
     } else if (sort === 'popular' || sort === 'clicks') {
@@ -137,3 +202,5 @@ export const eventService = {
     return list;
   }
 };
+
+export default eventService;

@@ -4,6 +4,7 @@ import { odService } from '../services/odService';
 import { registrationService } from '../services/registrationService';
 import { attendanceService } from '../services/attendanceService';
 import { storageService } from '../services/storageService';
+import { api } from '../services/apiClient';
 import { useToast } from './ToastContext';
 import { useAuth } from './AuthContext';
 import confetti from 'canvas-confetti';
@@ -21,14 +22,41 @@ export const DataProvider = ({ children }) => {
   const { showToast } = useToast();
   const { user } = useAuth();
 
-  const refreshAll = useCallback(() => {
+  const refreshAll = useCallback(async () => {
     storageService.initStorage();
+    // Initial sync from cache
     setEvents(eventService.getAllEvents());
     setOdRequests(odService.getAllODRequests());
     setRegistrations(registrationService.getAllRegistrations());
     setAttendance(attendanceService.getAllAttendance());
     setNotifications(storageService.getItem(storageService.KEYS.NOTIFICATIONS, []));
-    setLoading(false);
+
+    // Async sync from real API
+    try {
+      const [fetchedEvents, fetchedOD, fetchedRegs, fetchedAtt] = await Promise.all([
+        eventService.fetchAllEvents(),
+        odService.fetchAllODRequests(),
+        registrationService.fetchAllRegistrations(),
+        attendanceService.fetchAllAttendance()
+      ]);
+
+      if (fetchedEvents) setEvents(fetchedEvents);
+      if (fetchedOD) setOdRequests(fetchedOD);
+      if (fetchedRegs) setRegistrations(fetchedRegs);
+      if (fetchedAtt) setAttendance(fetchedAtt);
+
+      try {
+        const notifRes = await api.get('/notifications');
+        if (notifRes && notifRes.data) {
+          setNotifications(notifRes.data);
+          storageService.setItem(storageService.KEYS.NOTIFICATIONS, notifRes.data);
+        }
+      } catch (e) {}
+    } catch (err) {
+      console.warn('[DataContext] Background API sync error:', err.message);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -36,29 +64,29 @@ export const DataProvider = ({ children }) => {
   }, [refreshAll]);
 
   // Actions
-  const applyForOD = useCallback((formData) => {
-    const newReq = odService.submitODRequest(formData);
+  const applyForOD = useCallback(async (formData) => {
+    const newReq = await odService.submitODRequest(formData);
     refreshAll();
     showToast('OD request submitted successfully! Status: PENDING 🟡', 'success', 'OD Application Sent');
     return newReq;
   }, [refreshAll, showToast]);
 
-  const approveOD = useCallback((requestId, staffName) => {
-    const updated = odService.approveODRequest(requestId, staffName || user?.name);
+  const approveOD = useCallback(async (requestId, staffName) => {
+    const updated = await odService.approveODRequest(requestId, staffName || user?.name);
     refreshAll();
     showToast(`OD Request approved for ${updated?.studentName}!`, 'success', 'OD Approved');
     return updated;
   }, [refreshAll, showToast, user]);
 
-  const rejectOD = useCallback((requestId, reason, staffName) => {
-    const updated = odService.rejectODRequest(requestId, reason, staffName || user?.name);
+  const rejectOD = useCallback(async (requestId, reason, staffName) => {
+    const updated = await odService.rejectODRequest(requestId, reason, staffName || user?.name);
     refreshAll();
     showToast(`OD Request rejected with feedback sent to student.`, 'warning', 'OD Rejected');
     return updated;
   }, [refreshAll, showToast, user]);
 
-  const registerForEvent = useCallback((regData) => {
-    const newReg = registrationService.registerForEvent(regData);
+  const registerForEvent = useCallback(async (regData) => {
+    const newReg = await registrationService.registerForEvent(regData);
     refreshAll();
     // trigger celebration confetti
     try {
@@ -73,8 +101,8 @@ export const DataProvider = ({ children }) => {
     return newReg;
   }, [refreshAll, showToast]);
 
-  const recordCheckInScan = useCallback((eventId, qrToken, staffName) => {
-    const result = attendanceService.recordScan(eventId, qrToken, staffName || user?.name);
+  const recordCheckInScan = useCallback(async (eventId, qrToken, staffName) => {
+    const result = await attendanceService.recordScan(eventId, qrToken, staffName || user?.name);
     refreshAll();
     if (result.success) {
       showToast(`✓ Check-in marked for ${result.student.studentName} (${result.student.registerNumber}) at ${result.checkInTime}`, 'success', 'Attendance Recorded');
@@ -84,22 +112,22 @@ export const DataProvider = ({ children }) => {
     return result;
   }, [refreshAll, showToast, user]);
 
-  const createEvent = useCallback((eventData) => {
-    const newEv = eventService.createEvent(eventData);
+  const createEvent = useCallback(async (eventData) => {
+    const newEv = await eventService.createEvent(eventData);
     refreshAll();
     showToast(`Event "${newEv.title}" published successfully!`, 'success', 'Event Created');
     return newEv;
   }, [refreshAll, showToast]);
 
-  const updateEvent = useCallback((id, data) => {
-    const updated = eventService.updateEvent(id, data);
+  const updateEvent = useCallback(async (id, data) => {
+    const updated = await eventService.updateEvent(id, data);
     refreshAll();
     showToast(`Event updated successfully!`, 'success');
     return updated;
   }, [refreshAll, showToast]);
 
-  const deleteEvent = useCallback((id) => {
-    eventService.deleteEvent(id);
+  const deleteEvent = useCallback(async (id) => {
+    await eventService.deleteEvent(id);
     refreshAll();
     showToast('Event deleted', 'info');
   }, [refreshAll, showToast]);
@@ -113,14 +141,22 @@ export const DataProvider = ({ children }) => {
     eventService.trackEventView(eventId);
   }, []);
 
-  const markNotificationRead = useCallback((id) => {
+  const markNotificationRead = useCallback(async (id) => {
+    try {
+      await api.put(`/notifications/${id}/read`);
+    } catch (e) {}
+
     const notifs = storageService.getItem(storageService.KEYS.NOTIFICATIONS, []);
     const updated = notifs.map(n => n.id === id ? { ...n, read: true } : n);
     storageService.setItem(storageService.KEYS.NOTIFICATIONS, updated);
     setNotifications(updated);
   }, []);
 
-  const markAllNotificationsRead = useCallback((role, userId) => {
+  const markAllNotificationsRead = useCallback(async (role, userId) => {
+    try {
+      await api.put('/notifications/read-all');
+    } catch (e) {}
+
     const notifs = storageService.getItem(storageService.KEYS.NOTIFICATIONS, []);
     const updated = notifs.map(n => {
       if (n.recipientRole === role || n.recipientId === userId) {
@@ -172,3 +208,5 @@ export const useData = () => {
   if (!context) throw new Error('useData must be used within DataProvider');
   return context;
 };
+
+export default DataContext;

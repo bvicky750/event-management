@@ -1,7 +1,21 @@
+import { api } from './apiClient';
 import { storageService } from './storageService';
 import { initialODRequests } from '../data/odRequests';
 
 export const odService = {
+  async fetchAllODRequests() {
+    try {
+      const res = await api.get('/od');
+      if (res && res.data && Array.isArray(res.data)) {
+        storageService.setItem(storageService.KEYS.OD_REQUESTS, res.data);
+        return res.data;
+      }
+    } catch (err) {
+      console.warn('[ODService] Fetch OD requests API failed, using cache:', err.message);
+    }
+    return this.getAllODRequests();
+  },
+
   getAllODRequests() {
     storageService.initStorage();
     return storageService.getItem(storageService.KEYS.OD_REQUESTS, initialODRequests);
@@ -22,7 +36,7 @@ export const odService = {
     const match = requests.find(
       r => r.studentId === studentId && (String(r.eventId) === String(eventId) || String(r.eventId) === `evt_${eventId}`)
     );
-    return match ? match.status : null; // 'PENDING', 'APPROVED', 'REJECTED', or null
+    return match ? match.status : null;
   },
 
   getODRecordForEvent(studentId, eventId) {
@@ -32,7 +46,19 @@ export const odService = {
     ) || null;
   },
 
-  submitODRequest(formData) {
+  async submitODRequest(formData) {
+    try {
+      const res = await api.post('/od', formData);
+      if (res && res.data) {
+        const requests = this.getAllODRequests();
+        storageService.setItem(storageService.KEYS.OD_REQUESTS, [res.data, ...requests]);
+        return res.data;
+      }
+    } catch (err) {
+      console.warn('[ODService] Submit OD API failed, saving locally:', err.message);
+    }
+
+    // Local fallback
     const requests = this.getAllODRequests();
     const newId = `od_req_${Date.now()}`;
     const now = new Date();
@@ -50,26 +76,25 @@ export const odService = {
 
     const updated = [newRequest, ...requests];
     storageService.setItem(storageService.KEYS.OD_REQUESTS, updated);
-
-    // Also dispatch a mock notification for staff
-    const notifs = storageService.getItem(storageService.KEYS.NOTIFICATIONS, []);
-    const newNotif = {
-      id: `notif_${Date.now()}`,
-      recipientRole: "staff",
-      recipientId: "staff_001",
-      title: "New OD Request Submitted",
-      message: `${formData.studentName} (${formData.registerNumber}) applied for OD for ${formData.eventTitle}.`,
-      type: "action_required",
-      timestamp: formattedDate,
-      read: false,
-      link: `/staff/od`
-    };
-    storageService.setItem(storageService.KEYS.NOTIFICATIONS, [newNotif, ...notifs]);
-
     return newRequest;
   },
 
-  approveODRequest(id, staffName = "Dr. K. Ramanathan") {
+  async approveODRequest(id, staffName = "Dr. K. Ramanathan") {
+    try {
+      const res = await api.put(`/od/${id}/approve`, { staffName });
+      if (res && res.data) {
+        const requests = this.getAllODRequests();
+        const index = requests.findIndex(r => String(r.id) === String(id));
+        if (index !== -1) {
+          requests[index] = res.data;
+          storageService.setItem(storageService.KEYS.OD_REQUESTS, requests);
+        }
+        return res.data;
+      }
+    } catch (err) {
+      console.warn('[ODService] Approve OD API failed, updating locally:', err.message);
+    }
+
     const requests = this.getAllODRequests();
     const index = requests.findIndex(r => String(r.id) === String(id));
     if (index !== -1) {
@@ -84,28 +109,27 @@ export const odService = {
         rejectionReason: null
       };
       storageService.setItem(storageService.KEYS.OD_REQUESTS, requests);
-
-      // Create notification for student
-      const notifs = storageService.getItem(storageService.KEYS.NOTIFICATIONS, []);
-      const newNotif = {
-        id: `notif_${Date.now()}`,
-        recipientRole: "student",
-        recipientId: requests[index].studentId,
-        title: "OD Request Approved! 🎉",
-        message: `Your On-Duty application for ${requests[index].eventTitle} was approved by ${staffName}. You can now register for the event.`,
-        type: "success",
-        timestamp: formattedDate,
-        read: false,
-        link: `/events/${requests[index].eventId}`
-      };
-      storageService.setItem(storageService.KEYS.NOTIFICATIONS, [newNotif, ...notifs]);
-
       return requests[index];
     }
     return null;
   },
 
-  rejectODRequest(id, rejectionReason, staffName = "Dr. K. Ramanathan") {
+  async rejectODRequest(id, rejectionReason, staffName = "Dr. K. Ramanathan") {
+    try {
+      const res = await api.put(`/od/${id}/reject`, { reason: rejectionReason, staffName });
+      if (res && res.data) {
+        const requests = this.getAllODRequests();
+        const index = requests.findIndex(r => String(r.id) === String(id));
+        if (index !== -1) {
+          requests[index] = res.data;
+          storageService.setItem(storageService.KEYS.OD_REQUESTS, requests);
+        }
+        return res.data;
+      }
+    } catch (err) {
+      console.warn('[ODService] Reject OD API failed, updating locally:', err.message);
+    }
+
     const requests = this.getAllODRequests();
     const index = requests.findIndex(r => String(r.id) === String(id));
     if (index !== -1) {
@@ -120,24 +144,10 @@ export const odService = {
         rejectionReason: rejectionReason || "The request did not meet the department criteria or overlaps with internal exams."
       };
       storageService.setItem(storageService.KEYS.OD_REQUESTS, requests);
-
-      // Create notification for student
-      const notifs = storageService.getItem(storageService.KEYS.NOTIFICATIONS, []);
-      const newNotif = {
-        id: `notif_${Date.now()}`,
-        recipientRole: "student",
-        recipientId: requests[index].studentId,
-        title: "OD Request Rejected ⚠️",
-        message: `Your OD request for ${requests[index].eventTitle} was rejected. Reason: ${requests[index].rejectionReason}`,
-        type: "warning",
-        timestamp: formattedDate,
-        read: false,
-        link: `/student/od`
-      };
-      storageService.setItem(storageService.KEYS.NOTIFICATIONS, [newNotif, ...notifs]);
-
       return requests[index];
     }
     return null;
   }
 };
+
+export default odService;

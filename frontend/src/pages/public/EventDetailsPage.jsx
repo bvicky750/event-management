@@ -23,13 +23,39 @@ import {
 } from 'lucide-react';
 import { EventCard } from '../../components/events/EventCard';
 
+import { eventService } from '../../services/eventService';
+
 export const EventDetailsPage = () => {
   const { id } = useParams();
   const { events, trackRegistrationClick, trackEventView } = useData();
   const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
+  const [event, setEvent] = useState(() => {
+    return events.find(e => e && (String(e.id) === String(id) || String(e.id) === `evt_${id}` || String(e.id) === `tp_evt_${id}` || String(e.id) === `ext_evt_${id}`)) || null;
+  });
+  const [isLoading, setIsLoading] = useState(!event);
 
-  const event = events.find(e => String(e.id) === String(id) || String(e.id) === `evt_${id}` || String(e.id) === `tp_evt_${id}` || String(e.id) === `ext_evt_${id}`);
+  useEffect(() => {
+    let isMounted = true;
+    const found = events.find(e => e && (String(e.id) === String(id) || String(e.id) === `evt_${id}` || String(e.id) === `tp_evt_${id}` || String(e.id) === `ext_evt_${id}`));
+    if (found) {
+      setEvent(found);
+      setIsLoading(false);
+    } else {
+      setIsLoading(true);
+      eventService.fetchEventById(id).then(res => {
+        if (isMounted) {
+          setEvent(res);
+          setIsLoading(false);
+        }
+      }).catch(() => {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      });
+    }
+    return () => { isMounted = false; };
+  }, [id, events]);
 
   // Track view when opening event
   useEffect(() => {
@@ -38,12 +64,21 @@ export const EventDetailsPage = () => {
     }
   }, [event?.id, trackEventView]);
 
+  if (isLoading) {
+    return (
+      <div className="max-w-4xl mx-auto px-4 py-24 text-center space-y-4 animate-fade-in">
+        <div className="w-12 h-12 border-4 border-[#6AB0E3] border-t-transparent rounded-full animate-spin mx-auto" />
+        <p className="text-sm font-bold text-[#5B7B9C]">Loading opportunity details from database...</p>
+      </div>
+    );
+  }
+
   if (!event) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-20 text-center space-y-4">
         <h2 className="text-2xl font-bold text-[#0F2238] font-display">Opportunity Not Found</h2>
         <p className="text-[#5B7B9C] text-sm">The event you are looking for might have been moved or removed.</p>
-        <Link to="/#explore-section" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#6AB0E3] text-white text-xs font-bold shadow-md shadow-[#6AB0E3]/25">
+        <Link to="/opportunities" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#6AB0E3] text-white text-xs font-bold shadow-md shadow-[#6AB0E3]/25">
           <ArrowLeft className="w-4 h-4" />
           <span>Back to Opportunity Catalog</span>
         </Link>

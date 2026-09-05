@@ -119,7 +119,7 @@ export const EventsPage = () => {
 
   // Filter & sort
   const filteredEvents = useMemo(() => {
-    return eventService.searchAndFilterEvents(filters);
+    return eventService.searchAndFilterEvents(filters, events);
   }, [filters, events]);
 
   // Pagination calculations
@@ -166,7 +166,7 @@ export const EventsPage = () => {
               type="text"
               value={searchInput}
               onChange={(e) => handleSearchInputChange(e.target.value)}
-              placeholder="Search aptitude, resume workshops, hackathons, symposiums..."
+              placeholder="Search events"
               className="w-full pl-13 sm:pl-16 pr-32 sm:pr-40 py-4 sm:py-5 rounded-full bg-white border-2 sm:border-3 border-[#6AB0E3] focus:border-[#2563EB] text-[#0F172A] placeholder-[#5B7B9C] text-sm sm:text-base font-bold focus:outline-none transition-all shadow-md focus:shadow-xl font-display"
             />
             <button

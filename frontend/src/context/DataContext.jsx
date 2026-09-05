@@ -24,14 +24,17 @@ export const DataProvider = ({ children }) => {
 
   const refreshAll = useCallback(async () => {
     storageService.initStorage();
-    // Initial sync from cache
-    setEvents(eventService.getAllEvents());
+    // Initial sync from cached storage
+    const cachedEvents = eventService.getAllEvents();
+    if (cachedEvents && cachedEvents.length > 0) {
+      setEvents(cachedEvents);
+    }
     setOdRequests(odService.getAllODRequests());
     setRegistrations(registrationService.getAllRegistrations());
     setAttendance(attendanceService.getAllAttendance());
     setNotifications(storageService.getItem(storageService.KEYS.NOTIFICATIONS, []));
 
-    // Async sync from real API
+    // Fetch live database events directly from backend API
     try {
       const [fetchedEvents, fetchedOD, fetchedRegs, fetchedAtt] = await Promise.all([
         eventService.fetchAllEvents(),
@@ -40,10 +43,22 @@ export const DataProvider = ({ children }) => {
         attendanceService.fetchAllAttendance()
       ]);
 
-      if (fetchedEvents) setEvents(fetchedEvents);
-      if (fetchedOD) setOdRequests(fetchedOD);
-      if (fetchedRegs) setRegistrations(fetchedRegs);
-      if (fetchedAtt) setAttendance(fetchedAtt);
+      if (fetchedEvents && Array.isArray(fetchedEvents)) {
+        setEvents(fetchedEvents);
+        storageService.setItem(storageService.KEYS.EVENTS, fetchedEvents);
+      }
+      if (fetchedOD && Array.isArray(fetchedOD)) {
+        setOdRequests(fetchedOD);
+        storageService.setItem(storageService.KEYS.OD_REQUESTS, fetchedOD);
+      }
+      if (fetchedRegs && Array.isArray(fetchedRegs)) {
+        setRegistrations(fetchedRegs);
+        storageService.setItem(storageService.KEYS.REGISTRATIONS, fetchedRegs);
+      }
+      if (fetchedAtt && Array.isArray(fetchedAtt)) {
+        setAttendance(fetchedAtt);
+        storageService.setItem(storageService.KEYS.ATTENDANCE, fetchedAtt);
+      }
 
       try {
         const notifRes = await api.get('/notifications');
@@ -66,29 +81,28 @@ export const DataProvider = ({ children }) => {
   // Actions
   const applyForOD = useCallback(async (formData) => {
     const newReq = await odService.submitODRequest(formData);
-    refreshAll();
+    await refreshAll();
     showToast('OD request submitted successfully! Status: PENDING 🟡', 'success', 'OD Application Sent');
     return newReq;
   }, [refreshAll, showToast]);
 
   const approveOD = useCallback(async (requestId, staffName) => {
     const updated = await odService.approveODRequest(requestId, staffName || user?.name);
-    refreshAll();
+    await refreshAll();
     showToast(`OD Request approved for ${updated?.studentName}!`, 'success', 'OD Approved');
     return updated;
   }, [refreshAll, showToast, user]);
 
   const rejectOD = useCallback(async (requestId, reason, staffName) => {
     const updated = await odService.rejectODRequest(requestId, reason, staffName || user?.name);
-    refreshAll();
+    await refreshAll();
     showToast(`OD Request rejected with feedback sent to student.`, 'warning', 'OD Rejected');
     return updated;
   }, [refreshAll, showToast, user]);
 
   const registerForEvent = useCallback(async (regData) => {
     const newReg = await registrationService.registerForEvent(regData);
-    refreshAll();
-    // trigger celebration confetti
+    await refreshAll();
     try {
       confetti({
         particleCount: 80,
@@ -103,7 +117,7 @@ export const DataProvider = ({ children }) => {
 
   const recordCheckInScan = useCallback(async (eventId, qrToken, staffName) => {
     const result = await attendanceService.recordScan(eventId, qrToken, staffName || user?.name);
-    refreshAll();
+    await refreshAll();
     if (result.success) {
       showToast(`✓ Check-in marked for ${result.student.studentName} (${result.student.registerNumber}) at ${result.checkInTime}`, 'success', 'Attendance Recorded');
     } else {
@@ -114,21 +128,21 @@ export const DataProvider = ({ children }) => {
 
   const createEvent = useCallback(async (eventData) => {
     const newEv = await eventService.createEvent(eventData);
-    refreshAll();
+    await refreshAll();
     showToast(`Event "${newEv.title}" published successfully!`, 'success', 'Event Created');
     return newEv;
   }, [refreshAll, showToast]);
 
   const updateEvent = useCallback(async (id, data) => {
     const updated = await eventService.updateEvent(id, data);
-    refreshAll();
+    await refreshAll();
     showToast(`Event updated successfully!`, 'success');
     return updated;
   }, [refreshAll, showToast]);
 
   const deleteEvent = useCallback(async (id) => {
     await eventService.deleteEvent(id);
-    refreshAll();
+    await refreshAll();
     showToast('Event deleted', 'info');
   }, [refreshAll, showToast]);
 

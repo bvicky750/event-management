@@ -37,22 +37,17 @@ export const PublicNavbar = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const isHome = location.pathname === '/';
-
   const getHeaderClass = () => {
-    if (isHome) {
-      return isScrolled
-        ? 'fixed top-0 left-0 right-0 z-50 bg-white/25 backdrop-blur-xl border-b border-white/30 shadow-xs transition-all duration-300'
-        : 'absolute top-0 left-0 right-0 z-50 bg-transparent border-b border-white/10 transition-all duration-300';
-    }
-    return 'sticky top-0 z-50 bg-white/70 backdrop-blur-xl border-b border-sky-100/50 shadow-xs transition-all';
+    return isScrolled
+      ? 'fixed top-0 left-0 right-0 z-50 bg-white/25 backdrop-blur-xl border-b border-white/30 shadow-xs transition-all duration-300'
+      : 'fixed top-0 left-0 right-0 z-50 bg-transparent border-b border-white/10 transition-all duration-300';
   };
 
   const navLinks = [
     { name: 'Home', path: '/' },
     { name: 'All Opportunities', path: '/opportunities' },
     { name: 'About', path: '/about' },
-    { name: 'Staff Portal', path: user && role === 'staff' ? '/staff/events' : '/staff/login' },
+    { name: 'Manage Events', path: user && role === 'staff' ? '/staff/events' : '/staff/login' },
   ];
 
   const handleAccountSwitch = (accountEmail, isStaffAccount) => {
@@ -130,12 +125,7 @@ export const PublicNavbar = () => {
                 {/* My Events & Add Event Button - Staff Only */}
                 {role === 'staff' && (
                   <div className="flex items-center gap-2">
-                    <Link
-                      to="/staff/events"
-                      className="px-4 py-2 rounded-full text-xs font-bold text-[#0F2238] bg-[#EAF6FF] hover:bg-[#C1E5FF] transition border border-[#C1E5FF]"
-                    >
-                      My Posted Events
-                    </Link>
+                   
                     <Link
                       to="/staff/events/create"
                       className="px-5 py-2.5 rounded-full text-xs font-bold text-white bg-[#2563EB] hover:bg-[#1D4ED8] transition shadow-md shadow-blue-500/25 flex items-center gap-1.5 group"

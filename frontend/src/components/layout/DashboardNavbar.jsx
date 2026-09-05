@@ -23,6 +23,7 @@ export const DashboardNavbar = ({ onMobileSidebarToggle, pageTitle = "Dashboard"
 
   const [notifOpen, setNotifOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
 
   const notifRef = useRef(null);
   const profileRef = useRef(null);
@@ -31,6 +32,14 @@ export const DashboardNavbar = ({ onMobileSidebarToggle, pageTitle = "Dashboard"
     n => n.recipientRole === role || n.recipientId === user?.id
   );
   const unreadCount = userNotifs.filter(n => !n.read).length;
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 20);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -58,7 +67,11 @@ export const DashboardNavbar = ({ onMobileSidebarToggle, pageTitle = "Dashboard"
   };
 
   return (
-    <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-[#C1E5FF] px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between shadow-xs">
+    <header className={`sticky top-0 z-30 transition-all duration-300 px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between ${
+      isScrolled
+        ? 'bg-white/25 backdrop-blur-xl border-b border-white/30 shadow-xs'
+        : 'bg-transparent border-b border-white/10'
+    }`}>
       {/* Left: Mobile Toggle & Page Title */}
       <div className="flex items-center gap-3">
         {onMobileSidebarToggle && (

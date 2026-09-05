@@ -1,4 +1,3 @@
-import { initialEvents } from '../data/events';
 import { mockUsers } from '../data/users';
 import { initialODRequests } from '../data/odRequests';
 import { initialRegistrations, initialPastParticipation } from '../data/registrations';
@@ -21,22 +20,12 @@ export const storageService = {
     if (!localStorage.getItem(STORAGE_KEYS.CURRENT_USER)) {
       localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(mockUsers.student));
     }
-    const storedEventsRaw = localStorage.getItem(STORAGE_KEYS.EVENTS);
-    if (!storedEventsRaw) {
-      localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(initialEvents));
-    } else {
-      try {
-        const existingEvents = JSON.parse(storedEventsRaw);
-        const existingIds = new Set(existingEvents.map(e => String(e.id)));
-        const missingEvents = initialEvents.filter(e => !existingIds.has(String(e.id)));
-        if (missingEvents.length > 0) {
-          const merged = [...existingEvents, ...missingEvents];
-          localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(merged));
-        }
-      } catch (e) {
-        localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(initialEvents));
-      }
+    
+    // We do NOT inject mock events. Events are strictly loaded from the MySQL API.
+    if (!localStorage.getItem(STORAGE_KEYS.EVENTS)) {
+      localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify([]));
     }
+
     if (!localStorage.getItem(STORAGE_KEYS.OD_REQUESTS)) {
       localStorage.setItem(STORAGE_KEYS.OD_REQUESTS, JSON.stringify(initialODRequests));
     }
@@ -73,8 +62,9 @@ export const storageService = {
   },
 
   resetAllToDefault() {
+    localStorage.removeItem(STORAGE_KEYS.EVENTS);
     localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(mockUsers.student));
-    localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify(initialEvents));
+    localStorage.setItem(STORAGE_KEYS.EVENTS, JSON.stringify([]));
     localStorage.setItem(STORAGE_KEYS.OD_REQUESTS, JSON.stringify(initialODRequests));
     localStorage.setItem(STORAGE_KEYS.REGISTRATIONS, JSON.stringify(initialRegistrations));
     localStorage.setItem(STORAGE_KEYS.PAST_PARTICIPATION, JSON.stringify(initialPastParticipation));
@@ -85,3 +75,5 @@ export const storageService = {
 
   KEYS: STORAGE_KEYS
 };
+
+export default storageService;

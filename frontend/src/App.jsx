@@ -51,10 +51,13 @@ import { StaffFacultyPage } from './pages/staff/StaffFacultyPage';
 
 // Public Layout Wrapper
 const PublicLayout = () => {
+  const location = useLocation();
+  const isHome = location.pathname === '/';
+
   return (
     <div className="min-h-screen flex flex-col bg-transparent text-[#0F2238] selection:bg-[#6AB0E3] selection:text-white">
       <PublicNavbar />
-      <main className="flex-1">
+      <main className={`flex-1 ${!isHome ? 'pt-20 sm:pt-24' : ''}`}>
         <Outlet />
       </main>
       <Footer />
@@ -112,7 +115,7 @@ const StaffPublicLayout = () => {
     <ProtectedRoute allowedRoles={['staff']}>
       <div className="min-h-screen flex flex-col bg-transparent text-[#0F2238] selection:bg-[#6AB0E3] selection:text-white">
         <PublicNavbar />
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
+        <main className="flex-1 pt-20 sm:pt-24 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
           <Outlet />
         </main>
         <Footer />

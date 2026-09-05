@@ -1,8 +1,15 @@
 import { query } from '../config/db.js';
+import { getTodayDateString } from '../utils/dateUtils.js';
 
 // Helper to format event DB row to frontend camelCase structure
 const formatEvent = (row) => {
   if (!row) return null;
+  const today = getTodayDateString();
+  const rawDeadline = row.registration_deadline
+    ? String(row.registration_deadline).slice(0, 10)
+    : (row.start_date ? String(row.start_date).slice(0, 10) : null);
+  const isPast = Boolean(rawDeadline && rawDeadline < today);
+
   return {
     id: row.id,
     title: row.title,
@@ -12,8 +19,8 @@ const formatEvent = (row) => {
     description: row.description,
     fullDescription: row.full_description,
     poster: row.poster,
-    startDate: row.start_date,
-    endDate: row.end_date,
+    startDate: row.start_date ? String(row.start_date).slice(0, 10) : null,
+    endDate: row.end_date ? String(row.end_date).slice(0, 10) : null,
     startTime: row.start_time,
     endTime: row.end_time,
     venue: row.venue,
@@ -21,7 +28,9 @@ const formatEvent = (row) => {
     institution: row.institution,
     department: row.department,
     registrationFee: Number(row.registration_fee) || 0,
-    registrationDeadline: row.registration_deadline,
+    registrationDeadline: row.registration_deadline ? String(row.registration_deadline).slice(0, 10) : null,
+    isPast,
+    timeline: isPast ? 'past' : 'active',
     registrationUrl: row.registration_url,
     eligibility: row.eligibility,
     capacity: row.capacity,
@@ -39,24 +48,27 @@ const formatEvent = (row) => {
     topics: typeof row.topics === 'string' ? JSON.parse(row.topics) : (row.topics || []),
     tags: typeof row.tags === 'string' ? JSON.parse(row.tags) : (row.tags || []),
     activities: typeof row.activities === 'string' ? JSON.parse(row.activities) : (row.activities || []),
-    od: typeof row.od_config === 'string' ? JSON.parse(row.od_config) : (row.od_config || {
-      available: true,
-      requiresApproval: true,
-      eligibleYears: ['2nd Year', '3rd Year', 'Final Year'],
-      maxDays: 2
-    }),
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
 };
 
 export const eventModel = {
-  async findAll({ search = '', type = 'all', category = 'all', city = 'all', fee = 'all', sort = 'upcoming', includeDrafts = false } = {}) {
+  async findAll({ search = '', type = 'all', category = 'all', city = 'all', fee = 'all', sort = 'upcoming', timeline = 'all', includeDrafts = false } = {}) {
     let sql = 'SELECT * FROM events WHERE 1=1';
     const params = [];
+    const today = getTodayDateString();
 
     if (!includeDrafts) {
       sql += " AND status != 'draft'";
+    }
+
+    if (timeline === 'active') {
+      sql += ' AND (COALESCE(registration_deadline, start_date) >= ?)';
+      params.push(today);
+    } else if (timeline === 'past') {
+      sql += ' AND (COALESCE(registration_deadline, start_date) < ?)';
+      params.push(today);
     }
 
     if (type && type !== 'all') {
@@ -95,7 +107,9 @@ export const eventModel = {
     }
 
     // Sorting
-    if (sort === 'upcoming') {
+    if (timeline === 'past' && sort === 'upcoming') {
+      sql += ' ORDER BY COALESCE(registration_deadline, start_date) DESC';
+    } else if (sort === 'upcoming') {
       sql += ' ORDER BY start_date ASC';
     } else if (sort === 'popular' || sort === 'clicks') {
       sql += ' ORDER BY registration_clicks DESC';
@@ -127,12 +141,6 @@ export const eventModel = {
     const topicsJson = JSON.stringify(data.topics || []);
     const tagsJson = JSON.stringify(data.tags || [data.category || 'Career']);
     const activitiesJson = JSON.stringify(data.activities || []);
-    const odConfigJson = JSON.stringify(data.od || data.od_config || {
-      available: true,
-      requiresApproval: true,
-      eligibleYears: ['2nd Year', '3rd Year', 'Final Year'],
-      maxDays: 2
-    });
 
     await query(
       `INSERT INTO events (
@@ -140,8 +148,8 @@ export const eventModel = {
         start_date, end_date, start_time, end_time, venue, city, institution, department,
         registration_fee, registration_deadline, registration_url, eligibility, capacity,
         registered_count, views_count, registration_clicks, status, featured, created_by,
-        coordinator_name, coordinator_email, coordinator_phone, topics, tags, activities, od_config
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        coordinator_name, coordinator_email, coordinator_phone, topics, tags, activities
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         data.title,
@@ -175,8 +183,7 @@ export const eventModel = {
         coordinatorPhone,
         topicsJson,
         tagsJson,
-        activitiesJson,
-        odConfigJson
+        activitiesJson
       ]
     );
 
@@ -195,7 +202,6 @@ export const eventModel = {
     const topicsJson = updates.topics ? JSON.stringify(updates.topics) : undefined;
     const tagsJson = updates.tags ? JSON.stringify(updates.tags) : undefined;
     const activitiesJson = updates.activities ? JSON.stringify(updates.activities) : undefined;
-    const odConfigJson = (updates.od || updates.od_config) ? JSON.stringify(updates.od || updates.od_config) : undefined;
 
     const fields = [];
     const values = [];
@@ -228,8 +234,7 @@ export const eventModel = {
       coordinator_phone: coordinatorPhone,
       topics: topicsJson,
       tags: tagsJson,
-      activities: activitiesJson,
-      od_config: odConfigJson
+      activities: activitiesJson
     };
 
     for (const [col, val] of Object.entries(map)) {
@@ -255,17 +260,19 @@ export const eventModel = {
   async incrementViews(id) {
     await query('UPDATE events SET views_count = views_count + 1 WHERE id = ?', [id]);
     const row = await query('SELECT views_count FROM events WHERE id = ?', [id]);
-    return row[0]?.views_count || 0;
+    return row[0]?.views_count || 1;
   },
 
   async incrementClicks(id) {
     await query('UPDATE events SET registration_clicks = registration_clicks + 1 WHERE id = ?', [id]);
     const row = await query('SELECT registration_clicks FROM events WHERE id = ?', [id]);
-    return row[0]?.registration_clicks || 0;
+    return row[0]?.registration_clicks || 1;
   },
 
   async incrementRegisteredCount(id, delta = 1) {
     await query('UPDATE events SET registered_count = GREATEST(0, registered_count + ?) WHERE id = ?', [delta, id]);
+    const row = await query('SELECT registered_count FROM events WHERE id = ?', [id]);
+    return row[0]?.registered_count || 0;
   }
 };
 

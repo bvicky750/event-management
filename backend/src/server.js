@@ -65,7 +65,9 @@ const startServer = async () => {
   });
 };
 
-if (process.env.NODE_ENV !== 'test') {
+const isTest = process.env.NODE_ENV === 'test' || process.argv.some(arg => arg.includes('test'));
+
+if (!isTest) {
   startServer();
 }
 

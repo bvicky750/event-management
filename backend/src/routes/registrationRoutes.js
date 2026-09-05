@@ -1,23 +1,22 @@
 import { Router } from 'express';
 import {
   getAllRegistrations,
-  getMyRegistrations,
   getRegistrationsByEvent,
   getRegistrationById,
   registerForEvent,
-  cancelRegistration,
-  getPastParticipation
+  cancelRegistration
 } from '../controllers/registrationController.js';
-import { optionalAuth, verifyToken, requireRoles } from '../middleware/auth.js';
+import { verifyToken, requireRoles } from '../middleware/auth.js';
 
 const router = Router();
 
+// Public: Student registers for event without logging in
+router.post('/', registerForEvent);
+router.get('/:id', getRegistrationById);
+
+// Staff/Admin protected: Review and manage registrations
 router.get('/', verifyToken, requireRoles('staff', 'admin'), getAllRegistrations);
-router.get('/my', verifyToken, getMyRegistrations);
 router.get('/event/:eventId', verifyToken, requireRoles('staff', 'admin'), getRegistrationsByEvent);
-router.get('/past/:studentId?', optionalAuth, getPastParticipation);
-router.get('/:id', optionalAuth, getRegistrationById);
-router.post('/', optionalAuth, registerForEvent);
-router.post('/:id/cancel', verifyToken, cancelRegistration);
+router.post('/:id/cancel', verifyToken, requireRoles('staff', 'admin'), cancelRegistration);
 
 export default router;

@@ -1,23 +1,11 @@
 import registrationModel from '../models/registrationModel.js';
 import eventModel from '../models/eventModel.js';
-import notificationModel from '../models/notificationModel.js';
-import pastParticipationModel from '../models/pastParticipationModel.js';
-import { generateRegistrationNumber, generateQRToken } from '../utils/qrToken.js';
 import { successResponse, errorResponse } from '../utils/response.js';
+import { getTodayDateString } from '../utils/dateUtils.js';
 
 export const getAllRegistrations = async (req, res, next) => {
   try {
     const list = await registrationModel.findAll();
-    return successResponse(res, list);
-  } catch (error) {
-    next(error);
-  }
-};
-
-export const getMyRegistrations = async (req, res, next) => {
-  try {
-    const studentId = req.user.id;
-    const list = await registrationModel.findByStudentId(studentId);
     return successResponse(res, list);
   } catch (error) {
     next(error);
@@ -39,7 +27,7 @@ export const getRegistrationById = async (req, res, next) => {
     const { id } = req.params;
     const reg = await registrationModel.findById(id);
     if (!reg) {
-      return errorResponse(res, `Registration pass "${id}" not found.`, 404);
+      return errorResponse(res, `Registration "${id}" not found.`, 404);
     }
     return successResponse(res, reg);
   } catch (error) {
@@ -51,103 +39,113 @@ export const registerForEvent = async (req, res, next) => {
   try {
     const {
       eventId,
-      studentId: providedStudentId,
-      studentName: providedStudentName,
-      registerNumber: providedRegNumber,
-      department: providedDept,
-      email: providedEmail,
-      phone: providedPhone,
-      activities = [],
-      amountPaid = 0,
-      paymentStatus = 'PAID'
+      studentName,
+      registerNumber,
+      department,
+      year,
+      college,
+      email,
+      phone
     } = req.body;
 
-    const studentId = req.user?.id || providedStudentId;
-    const studentName = req.user?.name || providedStudentName;
-    const registerNumber = req.user?.registerNumber || providedRegNumber;
-    const department = req.user?.department || providedDept;
-    const email = req.user?.email || providedEmail;
-    const phone = providedPhone;
-
+    // 1. Validate required fields
     if (!eventId) {
       return errorResponse(res, 'Event ID is required.', 400);
     }
 
-    if (!studentId || !studentName || !registerNumber) {
-      return errorResponse(res, 'Student profile details (ID, name, register number) are required.', 400);
+    if (!studentName || !studentName.trim()) {
+      return errorResponse(res, 'Student Name is required.', 400);
     }
 
-    // 1. Verify Event exists
+    if (!registerNumber || !registerNumber.trim()) {
+      return errorResponse(res, 'Register Number is required.', 400);
+    }
+
+    if (!email || !email.trim()) {
+      return errorResponse(res, 'Email address is required.', 400);
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanRegNo = registerNumber.trim().toUpperCase();
+    const cleanName = studentName.trim();
+
+    // 2. Verify Event exists
     const event = await eventModel.findById(eventId);
     if (!event) {
-      return errorResponse(res, `Event with ID "${eventId}" does not exist.`, 404);
+      return errorResponse(res, `Opportunity with ID "${eventId}" does not exist.`, 404);
     }
 
-    // 2. Check for duplicate registration
-    const existing = await registrationModel.findActiveByStudentAndEvent(studentId, eventId);
+    // 3. Verify Event is published
+    if (event.status !== 'published') {
+      return errorResponse(res, `Registration is not available for this event (Status: ${event.status}).`, 400);
+    }
+
+    // 4. Verify Registration Deadline
+    const deadlineStr = event.registrationDeadline || event.startDate;
+    if (deadlineStr) {
+      const today = getTodayDateString();
+      if (String(deadlineStr).slice(0, 10) < today) {
+        return errorResponse(res, 'Registration for this opportunity has closed.', 400);
+      }
+    }
+
+    // 5. Verify Event Capacity
+    if (event.capacity && (event.registeredCount || 0) >= event.capacity) {
+      return errorResponse(res, `Event is full (Capacity of ${event.capacity} reached). Registration is closed.`, 400);
+    }
+
+    // 6. Check Duplicate Registration
+    const existing = await registrationModel.findExisting(eventId, cleanRegNo, cleanEmail);
     if (existing) {
       return errorResponse(
         res,
-        `Student is already registered for "${event.title}". Pass ID: ${existing.registrationNumber}`,
+        `Student with Register Number "${cleanRegNo}" (or email "${cleanEmail}") has already registered for "${event.title}". Registration ID: ${existing.registrationNumber}`,
         409,
         { existingRegistration: existing }
       );
     }
 
-    // 3. Check Event Capacity
-    if (event.capacity && (event.registeredCount || 0) >= event.capacity) {
-      return errorResponse(res, `Event is fully booked (Capacity: ${event.capacity}). Registration is closed.`, 400);
-    }
-
-    // 4. Generate Registration Number & QR Token
+    // 7. Generate Registration Number
     const totalCount = await registrationModel.count();
-    const regNumber = generateRegistrationNumber(totalCount + 1);
-    const qrToken = generateQRToken(regNumber);
+    const regNumber = `REG-2026-${String(totalCount + 1).padStart(4, '0')}`;
 
     const now = new Date();
     const formattedDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
     const eventDatesStr = `${event.startDate}${event.endDate && event.endDate !== event.startDate ? ` - ${event.endDate}` : ''}`;
 
+    // 8. Create Registration in MySQL
     const newReg = await registrationModel.create({
       registrationNumber: regNumber,
-      studentId,
       eventId,
-      studentName,
-      registerNumber,
-      department,
-      email,
-      phone,
+      studentName: cleanName,
+      registerNumber: cleanRegNo,
+      department: department?.trim() || null,
+      year: year?.trim() || null,
+      college: college?.trim() || event.institution || 'Paavai Engineering College',
+      email: cleanEmail,
+      phone: phone?.trim() || null,
       eventTitle: event.title,
-      college: event.institution || 'Paavai Engineering College',
       venue: `${event.venue}, ${event.city}`,
       eventDates: eventDatesStr,
-      activities,
-      amountPaid: Number(amountPaid) || 0,
-      paymentStatus: Number(amountPaid) > 0 ? (paymentStatus || 'PAID') : 'FREE',
+      amountPaid: Number(event.registrationFee) || 0.00,
+      paymentStatus: Number(event.registrationFee) > 0 ? 'PAID' : 'FREE',
       registrationDate: formattedDate,
-      qrCodeToken: qrToken,
-      status: 'CONFIRMED',
-      attendanceStatus: 'NOT_CHECKED_IN',
-      checkInTime: null
+      status: 'CONFIRMED'
     });
 
-    // 5. Increment event count
+    // 9. Increment registered_count on the event
     await eventModel.incrementRegisteredCount(eventId, 1);
 
-    // 6. Create Student Notification
-    await notificationModel.create({
-      recipientRole: 'student',
-      recipientId: studentId,
-      title: 'Registration Confirmed! 🎟️',
-      message: `You have successfully registered for ${event.title}. Your Pass ID is ${regNumber}.`,
-      type: 'success',
-      timestamp: formattedDate,
-      read: false,
-      link: `/student/registrations/${newReg.id}`
-    });
-
-    return successResponse(res, newReg, 'Registration successful', 201);
+    return successResponse(
+      res,
+      newReg,
+      `Registration confirmed successfully for ${event.title}! Your Registration ID is ${regNumber}.`,
+      201
+    );
   } catch (error) {
+    if (error.code === 'ER_DUP_ENTRY') {
+      return errorResponse(res, 'A registration with this Register Number or Email already exists for this event.', 409);
+    }
     next(error);
   }
 };
@@ -160,10 +158,6 @@ export const cancelRegistration = async (req, res, next) => {
       return errorResponse(res, 'Registration not found.', 404);
     }
 
-    if (req.user.role === 'student' && reg.studentId !== req.user.id) {
-      return errorResponse(res, 'You do not have permission to cancel this registration.', 403);
-    }
-
     const cancelled = await registrationModel.cancel(id);
     await eventModel.incrementRegisteredCount(reg.eventId, -1);
 
@@ -173,22 +167,10 @@ export const cancelRegistration = async (req, res, next) => {
   }
 };
 
-export const getPastParticipation = async (req, res, next) => {
-  try {
-    const studentId = req.params.studentId || req.user.id;
-    const past = await pastParticipationModel.findByStudentId(studentId);
-    return successResponse(res, past);
-  } catch (error) {
-    next(error);
-  }
-};
-
 export default {
   getAllRegistrations,
-  getMyRegistrations,
   getRegistrationsByEvent,
   getRegistrationById,
   registerForEvent,
-  cancelRegistration,
-  getPastParticipation
+  cancelRegistration
 };

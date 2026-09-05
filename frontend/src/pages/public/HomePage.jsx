@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useData } from '../../context/DataContext';
+import { eventService } from '../../services/eventService';
 import {
   ArrowDown,
   ArrowRight,
@@ -86,10 +87,13 @@ export const HomePage = () => {
     updateFiltersInUrl(type, category, '');
   };
 
-  const filteredEvents = useMemo(() => {
-    return events.filter(event => {
-      if (event.status === 'draft') return false;
+  // The Home page strictly presents currently active opportunities (registration deadline not passed)
+  const activeEvents = useMemo(() => {
+    return events.filter(event => event && event.status !== 'draft' && !eventService.isEventPast(event));
+  }, [events]);
 
+  const filteredEvents = useMemo(() => {
+    return activeEvents.filter(event => {
       if (selectedType !== 'all' && event.type !== selectedType) return false;
 
       if (selectedCategory !== 'all' && event.category !== selectedCategory) return false;
@@ -110,25 +114,25 @@ export const HomePage = () => {
 
       return true;
     });
-  }, [events, selectedType, selectedCategory, activeSearch]);
+  }, [activeEvents, selectedType, selectedCategory, activeSearch]);
 
   const hasActiveFilters = activeSearch !== '' || selectedType !== 'all' || selectedCategory !== 'all';
 
-  // Filter club events vs external opportunities
-  const clubEvents = events.filter(e => e.type === 'club_event' && e.status !== 'draft');
-  const externalEvents = events.filter(e => e.type === 'external_opportunity' && e.status !== 'draft');
+  // Filter club events vs external opportunities (active only)
+  const clubEvents = useMemo(() => activeEvents.filter(e => e.type === 'club_event'), [activeEvents]);
+  const externalEvents = useMemo(() => activeEvents.filter(e => e.type === 'external_opportunity'), [activeEvents]);
 
-  // Featured section: 1 large + 2 smaller
-  const featuredLarge = events.find(e => e.featured) || events[0];
-  const featuredSmaller = events.filter(e => e.id !== featuredLarge?.id && e.status !== 'draft').slice(0, 2);
+  // Featured section: 1 large + 2 smaller (active only)
+  const featuredLarge = useMemo(() => activeEvents.find(e => e.featured) || activeEvents[0] || null, [activeEvents]);
+  const featuredSmaller = useMemo(() => activeEvents.filter(e => e.id !== featuredLarge?.id).slice(0, 2), [activeEvents, featuredLarge]);
 
-  const categories = [
+  const categories = useMemo(() => [
     {
       id: 'Career',
       name: 'Career & Placement',
       desc: 'Resume optimization, mock interviews & company prep',
       icon: Briefcase,
-      count: events.filter(e => e.category === 'Career' || e.category === 'Placement').length,
+      count: activeEvents.filter(e => e.category === 'Career' || e.category === 'Placement').length,
       color: 'from-[#3B82F6] to-[#1D4ED8]'
     },
     {
@@ -136,7 +140,7 @@ export const HomePage = () => {
       name: 'Coding & Hackathons',
       desc: '24H sprints, DSA marathons & model hacking',
       icon: Code2,
-      count: events.filter(e => e.category === 'Technical' || e.category === 'Hackathon').length,
+      count: activeEvents.filter(e => e.category === 'Technical' || e.category === 'Hackathon').length,
       color: 'from-[#2563EB] to-[#1E40AF]'
     },
     {
@@ -144,7 +148,7 @@ export const HomePage = () => {
       name: 'Hands-on Workshops',
       desc: 'Edge AI, embedded systems & CAD masterclasses',
       icon: BookOpen,
-      count: events.filter(e => e.category === 'Workshop').length,
+      count: activeEvents.filter(e => e.category === 'Workshop').length,
       color: 'from-[#60A5FA] to-[#2563EB]'
     },
     {
@@ -152,7 +156,7 @@ export const HomePage = () => {
       name: 'Aptitude & Reasoning',
       desc: 'Speed battles & diagnostic tests for NQT / AMCAT',
       icon: Target,
-      count: events.filter(e => e.category === 'Aptitude').length,
+      count: activeEvents.filter(e => e.category === 'Aptitude').length,
       color: 'from-[#3B82F6] to-[#1E3A8A]'
     },
     {
@@ -160,7 +164,7 @@ export const HomePage = () => {
       name: 'Soft Skills & GD',
       desc: 'Group discussion entry, corporate etiquette & STAR',
       icon: Users,
-      count: events.filter(e => e.category === 'Soft Skills').length,
+      count: activeEvents.filter(e => e.category === 'Soft Skills').length,
       color: 'from-[#93C5FD] to-[#2563EB]'
     },
     {
@@ -168,10 +172,10 @@ export const HomePage = () => {
       name: 'Inter-College Fests',
       desc: 'National symposiums, fests & CTF tournaments',
       icon: Globe,
-      count: events.filter(e => e.category === 'Symposium' || e.category === 'Competition').length,
+      count: activeEvents.filter(e => e.category === 'Symposium' || e.category === 'Competition').length,
       color: 'from-[#2563EB] to-[#0F172A]'
     }
-  ];
+  ], [activeEvents]);
 
   return (
     <div className="space-y-16 sm:space-y-24 pb-20 overflow-hidden bg-transparent">
@@ -327,7 +331,7 @@ export const HomePage = () => {
               </div>
 
               <div className="space-y-4 sm:space-y-5">
-                {events.filter(e => e.status !== 'draft').slice(0, 3).map((ev) => (
+                {activeEvents.slice(0, 3).map((ev) => (
                   <EventCard key={ev.id} event={ev} variant="horizontal" />
                 ))}
               </div>
@@ -465,6 +469,7 @@ export const HomePage = () => {
               <div className="pt-2 flex flex-wrap gap-3">
                 <Link
                   to="/opportunities"
+                  onClick={() => window.scrollTo({ top: 0, left: 0, behavior: 'instant' })}
                   className="px-6 py-3 rounded-full bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-bold text-xs transition shadow-md shadow-blue-500/25 inline-flex items-center gap-2"
                 >
                   <span>Browse All Active Events</span>
@@ -472,6 +477,7 @@ export const HomePage = () => {
                 </Link>
                 <Link
                   to="/about"
+                  onClick={() => window.scrollTo({ top: 0, left: 0, behavior: 'instant' })}
                   className="px-6 py-3 rounded-full bg-white hover:bg-sky-50 text-[#0F172A] font-bold text-xs border border-sky-200 transition"
                 >
                   Learn About T&P Club

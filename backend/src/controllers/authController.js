@@ -28,12 +28,6 @@ const sanitizeUser = (user) => {
     phone: rest.phone,
     college: rest.college,
     avatar: rest.avatar,
-    registerNumber: rest.register_number,
-    year: rest.year,
-    semester: rest.semester,
-    section: rest.section,
-    cgpa: rest.cgpa,
-    attendancePercentage: rest.attendance_percentage ? Number(rest.attendance_percentage) : 0,
     employeeId: rest.employee_id,
     designation: rest.designation,
     cabin: rest.cabin,
@@ -53,7 +47,12 @@ export const login = async (req, res, next) => {
 
     const user = await userModel.findByEmail(email.trim().toLowerCase());
     if (!user) {
-      return errorResponse(res, 'Invalid credentials. No user found with this email.', 401);
+      return errorResponse(res, 'Invalid credentials. No account found with this email.', 401);
+    }
+
+    // Only staff and admin can log in
+    if (!['staff', 'admin'].includes(user.role)) {
+      return errorResponse(res, 'Access denied. Only authorized staff may log in.', 403);
     }
 
     if (user.status === 'inactive') {
@@ -74,86 +73,7 @@ export const login = async (req, res, next) => {
         user: sanitized,
         token
       },
-      'Login successful'
-    );
-  } catch (error) {
-    next(error);
-  }
-};
-
-export const register = async (req, res, next) => {
-  try {
-    const {
-      name,
-      email,
-      password,
-      role = 'student',
-      department,
-      phone,
-      college,
-      registerNumber,
-      year,
-      semester,
-      section,
-      cgpa,
-      employeeId,
-      designation,
-      cabin
-    } = req.body;
-
-    if (!name || !email || !password) {
-      return errorResponse(res, 'Name, email, and password are required.', 400);
-    }
-
-    const existingUser = await userModel.findByEmail(email.trim().toLowerCase());
-    if (existingUser) {
-      return errorResponse(res, 'An account with this email already exists.', 409);
-    }
-
-    if (registerNumber) {
-      const existingReg = await userModel.findByRegisterNumber(registerNumber.trim());
-      if (existingReg) {
-        return errorResponse(res, 'A student with this register number already exists.', 409);
-      }
-    }
-
-    const salt = await bcrypt.genSalt(10);
-    const password_hash = await bcrypt.hash(password, salt);
-
-    const id = role === 'student' ? `stud_${Date.now()}` : `staff_${Date.now()}`;
-
-    const created = await userModel.create({
-      id,
-      name: name.trim(),
-      email: email.trim().toLowerCase(),
-      password_hash,
-      role: ['student', 'staff', 'admin'].includes(role) ? role : 'student',
-      department,
-      phone,
-      college,
-      register_number: registerNumber || null,
-      year: year || null,
-      semester: semester || null,
-      section: section || null,
-      cgpa: cgpa || null,
-      attendance_percentage: 90.0,
-      employee_id: employeeId || null,
-      designation: designation || null,
-      cabin: cabin || null,
-      status: 'active'
-    });
-
-    const token = generateToken(created);
-    const sanitized = sanitizeUser(created);
-
-    return successResponse(
-      res,
-      {
-        user: sanitized,
-        token
-      },
-      'Account created successfully',
-      201
+      'Staff login successful'
     );
   } catch (error) {
     next(error);
@@ -172,38 +92,7 @@ export const getCurrentUser = async (req, res, next) => {
   }
 };
 
-export const switchDemoRole = async (req, res, next) => {
-  try {
-    const { role } = req.body; // 'student' or 'staff'
-    let user;
-
-    if (role === 'staff') {
-      const staffList = await userModel.getAllStaff();
-      user = staffList[0] ? await userModel.findById(staffList[0].id) : null;
-    } else {
-      const studentList = await userModel.getAllStudents();
-      user = studentList[0] ? await userModel.findById(studentList[0].id) : null;
-    }
-
-    if (!user) {
-      return errorResponse(res, `No default ${role} account found in database.`, 404);
-    }
-
-    const token = generateToken(user);
-    const sanitized = sanitizeUser(user);
-
-    return successResponse(res, {
-      user: sanitized,
-      token
-    }, `Switched to demo ${role} role`);
-  } catch (error) {
-    next(error);
-  }
-};
-
 export default {
   login,
-  register,
-  getCurrentUser,
-  switchDemoRole
+  getCurrentUser
 };

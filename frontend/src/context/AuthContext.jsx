@@ -19,7 +19,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const loggedUser = await authService.login(email, password);
       setUser(loggedUser);
-      showToast(`Welcome, ${loggedUser.name}! Logged in as ${loggedUser.role.toUpperCase()}`, 'success');
+      showToast(`Welcome back, ${loggedUser.name}! Staff access verified.`, 'success');
       return loggedUser;
     } catch (err) {
       showToast(err.message || 'Login failed', 'error');
@@ -27,38 +27,26 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const switchRole = async (role) => {
-    const switchedUser = await authService.switchRole(role);
-    setUser(switchedUser);
-    showToast(`Switched active demo role to ${role.toUpperCase()}: ${switchedUser.name}`, 'info');
-    return switchedUser;
-  };
-
   const logout = () => {
-    authService.logout();
+    try {
+      authService.logout();
+    } catch (err) {
+      console.error('Logout error:', err);
+    }
     setUser(null);
-    showToast('Logged out successfully', 'info');
-  };
-
-  const updateProfile = async (profileData) => {
-    const updated = await authService.updateProfile(profileData);
-    setUser(updated);
-    showToast('Profile updated successfully!', 'success');
-    return updated;
+    showToast('Signed out of staff session', 'info');
   };
 
   return (
     <AuthContext.Provider
       value={{
         user,
-        role: user?.role || 'student',
+        role: user?.role || null,
         loading,
         login,
-        switchRole,
         logout,
-        updateProfile,
-        isStudent: user?.role === 'student',
-        isStaff: user?.role === 'staff'
+        isAuthenticated: Boolean(user),
+        isStaff: Boolean(user && (user.role === 'staff' || user.role === 'admin'))
       }}
     >
       {children}

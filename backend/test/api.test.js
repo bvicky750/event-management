@@ -1,13 +1,10 @@
+process.env.NODE_ENV = 'test';
 import assert from 'assert';
 import http from 'http';
 import app from '../src/server.js';
-import { getSeedData } from '../database/seeds.js';
 import userModel from '../src/models/userModel.js';
 import eventModel from '../src/models/eventModel.js';
 import registrationModel from '../src/models/registrationModel.js';
-import attendanceModel from '../src/models/attendanceModel.js';
-import odModel from '../src/models/odModel.js';
-import jwt from 'jsonwebtoken';
 import { config } from '../src/config/env.js';
 
 let server;
@@ -54,136 +51,243 @@ async function request(method, path, body = null, token = null) {
 
 async function runTests() {
   console.log('\n==================================================');
-  console.log('  RUNNING COMPREHENSIVE BACKEND API TEST SUITE');
+  console.log('  RUNNING T&P CLUB SIMPLIFIED FULL-STACK API TESTS');
   console.log('==================================================\n');
+
+  let passed = 0;
+  let failed = 0;
+
+  const test = async (name, fn) => {
+    try {
+      await fn();
+      console.log(`  ✓ ${name}`);
+      passed++;
+    } catch (err) {
+      console.error(`  ✗ ${name}`);
+      console.error(`    Error: ${err.message}`);
+      failed++;
+    }
+  };
 
   // Start test server on random port
   await new Promise((resolve) => {
-    const testPort = 5055;
-    server = app.listen(testPort, () => {
-      baseUrl = `http://localhost:${testPort}`;
-      console.log(`[Test Server] Started on ${baseUrl}`);
+    server = app.listen(0, () => {
+      const port = server.address().port;
+      baseUrl = `http://localhost:${port}`;
+      console.log(`[Test Suite] Ephemeral test server running at ${baseUrl}\n`);
       resolve();
     });
   });
 
-  let testsPassed = 0;
-  let testsFailed = 0;
+  try {
+    let staffToken = null;
+    let createdEventId = null;
 
-  async function test(name, fn) {
-    try {
-      await fn();
-      console.log(`  ✓ PASS: ${name}`);
-      testsPassed++;
-    } catch (err) {
-      console.error(`  ✗ FAIL: ${name}`);
-      console.error(`    Error: ${err.message}`);
-      testsFailed++;
+    // 1. Health Check
+    await test('GET /api/health returns 200 and db status', async () => {
+      const res = await request('GET', '/api/health');
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.data.status, 'ok');
+      assert.strictEqual(res.data.database, 'connected');
+    });
+
+    // 2. Public Event Discovery (No Auth)
+    await test('GET /api/events publicly lists opportunities without authentication', async () => {
+      const res = await request('GET', '/api/events');
+      assert.strictEqual(res.status, 200);
+      assert.ok(Array.isArray(res.data.data), 'Expected array of events');
+      assert.ok(res.data.data.length > 0, 'Expected at least 1 seed event');
+    });
+
+    // 3. Public Event Details (No Auth)
+    await test('GET /api/events/:id publicly returns event details', async () => {
+      const listRes = await request('GET', '/api/events');
+      const firstEvent = listRes.data.data[0];
+      const res = await request('GET', `/api/events/${firstEvent.id}`);
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.data.data.id, firstEvent.id);
+      assert.strictEqual(res.data.data.title, firstEvent.title);
+    });
+
+    // 4. Staff Login & JWT Generation
+    await test('POST /api/auth/login authenticates staff and returns JWT', async () => {
+      const res = await request('POST', '/api/auth/login', {
+        email: 'staff@college.edu',
+        password: 'staff123'
+      });
+      assert.strictEqual(res.status, 200);
+      assert.ok(res.data.data.token, 'Expected JWT token');
+      assert.strictEqual(res.data.data.user.role, 'staff');
+      staffToken = res.data.data.token;
+    });
+
+    // 5. Staff Profile via Token
+    await test('GET /api/auth/me verifies valid staff token', async () => {
+      const res = await request('GET', '/api/auth/me', null, staffToken);
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.data.data.email, 'staff@college.edu');
+      assert.strictEqual(res.data.data.role, 'staff');
+    });
+
+    // 6. Security: Deny Protected Endpoints Without Token
+    await test('POST /api/events without token returns 401 Unauthorized', async () => {
+      const res = await request('POST', '/api/events', {
+        title: 'Unauthorized Event'
+      });
+      assert.strictEqual(res.status, 401);
+    });
+
+    // 7. Staff Event Creation
+    await test('POST /api/events creates an opportunity with staff token', async () => {
+      const testEvent = {
+        title: `Automated Test Workshop ${Date.now()}`,
+        subtitle: 'Hands-on practical verification session',
+        type: 'club_event',
+        category: 'Technical',
+        description: 'Testing event creation pipeline',
+        startDate: '2026-10-10',
+        endDate: '2026-10-10',
+        startTime: '10:00 AM',
+        endTime: '01:00 PM',
+        venue: 'Lab 3',
+        city: 'On-Campus',
+        institution: 'Training & Placement Club',
+        registrationFee: 0,
+        registrationDeadline: '2026-10-09',
+        status: 'published'
+      };
+
+      const res = await request('POST', '/api/events', testEvent, staffToken);
+      assert.strictEqual(res.status, 201);
+      assert.ok(res.data.data.id, 'Expected event ID');
+      createdEventId = res.data.data.id;
+    });
+
+    // 8. Public Student Registration (No Student Account Required)
+    const uniqueRoll = `TEST${Date.now().toString().slice(-6)}`;
+    const uniqueEmail = `student.${uniqueRoll.toLowerCase()}@college.edu`;
+
+    await test('POST /api/registrations allows student registration without account', async () => {
+      const regData = {
+        eventId: createdEventId,
+        studentName: 'Test Student',
+        registerNumber: uniqueRoll,
+        email: uniqueEmail,
+        phone: '+91 9988776655',
+        department: 'CSE',
+        year: '3rd Year',
+        college: 'Paavai Engineering College'
+      };
+
+      const res = await request('POST', '/api/registrations', regData);
+      assert.strictEqual(res.status, 201);
+      assert.ok(res.data.data.registrationNumber, 'Expected registration number');
+      assert.strictEqual(res.data.data.registerNumber, uniqueRoll);
+      assert.strictEqual(res.data.data.status, 'CONFIRMED');
+    });
+
+    // 9. Duplicate Registration Prevention
+    await test('POST /api/registrations rejects duplicate registration with 409 Conflict', async () => {
+      const regData = {
+        eventId: createdEventId,
+        studentName: 'Duplicate Student',
+        registerNumber: uniqueRoll,
+        email: uniqueEmail,
+        department: 'CSE'
+      };
+
+      const res = await request('POST', '/api/registrations', regData);
+      assert.strictEqual(res.status, 409);
+      assert.ok(res.data.message.includes('already registered'), 'Expected duplicate error message');
+    });
+
+    // 10. Staff View Registrations for Event
+    await test('GET /api/registrations/event/:eventId returns registrations for staff', async () => {
+      const res = await request('GET', `/api/registrations/event/${createdEventId}`, null, staffToken);
+      assert.strictEqual(res.status, 200);
+      assert.ok(Array.isArray(res.data.data), 'Expected array of registrations');
+      assert.strictEqual(res.data.data.length, 1);
+      assert.strictEqual(res.data.data[0].registerNumber, uniqueRoll);
+    });
+
+    // 11. Staff Event Update
+    await test('PUT /api/events/:id updates opportunity with staff token', async () => {
+      const res = await request('PUT', `/api/events/${createdEventId}`, {
+        title: 'Updated Workshop Title'
+      }, staffToken);
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual(res.data.data.title, 'Updated Workshop Title');
+    });
+
+    // 12. Staff Event Deletion
+    await test('DELETE /api/events/:id deletes opportunity with staff token', async () => {
+      const res = await request('DELETE', `/api/events/${createdEventId}`, null, staffToken);
+      assert.strictEqual(res.status, 200);
+
+      // Verify it no longer exists
+      const checkRes = await request('GET', `/api/events/${createdEventId}`);
+      assert.strictEqual(checkRes.status, 404);
+    });
+
+    // 13. Automatic Past Opportunities: Active vs Past timeline filtering
+    await test('GET /api/events?timeline=active and ?timeline=past filter correctly', async () => {
+      const activeRes = await request('GET', '/api/events?timeline=active');
+      assert.strictEqual(activeRes.status, 200);
+      assert.ok(activeRes.data.data.every(e => e.isPast === false), 'All events should have isPast: false in active view');
+
+      const pastRes = await request('GET', '/api/events?timeline=past');
+      assert.strictEqual(pastRes.status, 200);
+      assert.ok(pastRes.data.data.length > 0, 'Seed should contain past events');
+      assert.ok(pastRes.data.data.every(e => e.isPast === true), 'All events should have isPast: true in past view');
+    });
+
+    // 14. Registration Security: Reject registration for expired event
+    await test('POST /api/registrations rejects registration for past deadline event with 400', async () => {
+      // Find a past event or create one
+      const pastList = await request('GET', '/api/events?timeline=past');
+      const pastEvent = pastList.data.data[0];
+      assert.ok(pastEvent, 'Need a past event to test');
+
+      const regRes = await request('POST', '/api/registrations', {
+        eventId: pastEvent.id,
+        studentName: 'Late Student',
+        registerNumber: `LATE${Date.now().toString().slice(-4)}`,
+        email: 'late@college.edu',
+        phone: '9988776655',
+        department: 'CSE'
+      });
+
+      assert.strictEqual(regRes.status, 400);
+      assert.strictEqual(regRes.data.success, false);
+      assert.strictEqual(regRes.data.message, 'Registration for this opportunity has closed.');
+    });
+
+    // 15. Direct URL Access for Past Event
+    await test('GET /api/events/:id succeeds for past event without error and marks isPast', async () => {
+      const pastList = await request('GET', '/api/events?timeline=past');
+      const pastEvent = pastList.data.data[0];
+      const singleRes = await request('GET', `/api/events/${pastEvent.id}`);
+      assert.strictEqual(singleRes.status, 200);
+      assert.strictEqual(singleRes.data.data.id, pastEvent.id);
+      assert.strictEqual(singleRes.data.data.isPast, true);
+    });
+  } finally {
+    if (server) {
+      server.close();
     }
   }
 
-  // TEST 1: Health Check
-  await test('GET /api/health returns 200 OK', async () => {
-    const res = await request('GET', '/api/health');
-    assert.strictEqual(res.status, 200);
-    assert.strictEqual(res.data.message, 'T&P Club Event Management Backend Running');
-  });
-
-  // TEST 2: Seed / In-memory user token generation & verification
-  const testStudentUser = {
-    id: 'stud_test_001',
-    name: 'Test Student',
-    email: 'test.student@college.edu',
-    role: 'student',
-    registerNumber: '23CSE999'
-  };
-
-  const testStaffUser = {
-    id: 'staff_test_001',
-    name: 'Dr. Test Staff',
-    email: 'test.staff@college.edu',
-    role: 'staff',
-    employeeId: 'EMP-999'
-  };
-
-  const studentToken = jwt.sign(testStudentUser, config.jwt.secret, { expiresIn: '1h' });
-  const staffToken = jwt.sign(testStaffUser, config.jwt.secret, { expiresIn: '1h' });
-
-  // TEST 3: Auth Login - Missing Credentials
-  await test('POST /api/auth/login with empty body returns 400', async () => {
-    const res = await request('POST', '/api/auth/login', {});
-    assert.strictEqual(res.status, 400);
-    assert.strictEqual(res.data.success, false);
-  });
-
-  // TEST 4: Events Catalog - GET /api/events
-  await test('GET /api/events returns event list', async () => {
-    const res = await request('GET', '/api/events');
-    assert.strictEqual(res.status, 200);
-    assert.strictEqual(res.data.success, true);
-    assert(Array.isArray(res.data.data));
-  });
-
-  // TEST 5: Events Catalog - Filtering by Type
-  await test('GET /api/events?type=club_event returns filtered events', async () => {
-    const res = await request('GET', '/api/events?type=club_event');
-    assert.strictEqual(res.status, 200);
-    assert.strictEqual(res.data.success, true);
-    if (res.data.data.length > 0) {
-      assert(res.data.data.every(e => e.type === 'club_event'));
-    }
-  });
-
-  // TEST 6: RBAC - Student cannot create event
-  await test('POST /api/events without staff role returns 403 Forbidden', async () => {
-    const res = await request('POST', '/api/events', {
-      title: 'Unauthorized Event',
-      type: 'club_event'
-    }, studentToken);
-    assert.strictEqual(res.status, 403);
-    assert.strictEqual(res.data.success, false);
-  });
-
-  // TEST 7: Attendance Scan - Missing Fields
-  await test('POST /api/attendance/scan with missing fields returns 400', async () => {
-    const res = await request('POST', '/api/attendance/scan', {});
-    assert.strictEqual(res.status, 400);
-    assert.strictEqual(res.data.success, false);
-  });
-
-  // TEST 8: Attendance Scan - Invalid QR Token
-  await test('POST /api/attendance/scan with invalid token returns INVALID_QR error', async () => {
-    const res = await request('POST', '/api/attendance/scan', {
-      eventId: 'evt_1',
-      qrToken: 'NON_EXISTENT_QR_9999'
-    });
-    assert.strictEqual(res.status, 400);
-    assert.strictEqual(res.data.success, false);
-    assert.strictEqual(res.data.errorType, 'INVALID_QR');
-  });
-
-  // TEST 9: OD Requests - GET /api/od
-  await test('GET /api/od returns list of OD applications', async () => {
-    const res = await request('GET', '/api/od');
-    assert.strictEqual(res.status, 200);
-    assert.strictEqual(res.data.success, true);
-    assert(Array.isArray(res.data.data));
-  });
-
-  // TEST 10: Reports Analytics - GET /api/reports/analytics
-  await test('GET /api/reports/analytics returns metrics overview', async () => {
-    const res = await request('GET', '/api/reports/analytics');
-    assert.strictEqual(res.status, 200);
-    assert.strictEqual(res.data.success, true);
-    assert(res.data.data.totals !== undefined);
-  });
-
   console.log('\n==================================================');
-  console.log(`  RESULTS: ${testsPassed} passed, ${testsFailed} failed`);
+  console.log(`  TEST RESULTS: ${passed} PASSED, ${failed} FAILED`);
   console.log('==================================================\n');
 
-  server.close();
-  process.exit(testsFailed > 0 ? 1 : 0);
+  if (failed > 0) {
+    process.exit(1);
+  }
+  process.exit(0);
 }
 
-runTests();
+runTests().catch((e) => {
+  console.error('Fatal Test Runner Error:', e);
+  process.exit(1);
+});

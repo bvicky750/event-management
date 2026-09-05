@@ -1,6 +1,5 @@
 import { api } from './apiClient';
 import { storageService } from './storageService';
-import { initialEvents } from '../data/events';
 
 export const eventService = {
   async fetchAllEvents(params = {}) {
@@ -18,13 +17,22 @@ export const eventService = {
 
   getAllEvents() {
     storageService.initStorage();
-    return storageService.getItem(storageService.KEYS.EVENTS, initialEvents);
+    return storageService.getItem(storageService.KEYS.EVENTS, []);
   },
 
   async fetchEventById(id) {
     try {
       const res = await api.get(`/events/${id}`);
       if (res && res.data) {
+        // Also update or insert in local cache
+        const events = this.getAllEvents();
+        const index = events.findIndex(e => String(e.id) === String(id));
+        if (index !== -1) {
+          events[index] = res.data;
+        } else {
+          events.push(res.data);
+        }
+        storageService.setItem(storageService.KEYS.EVENTS, events);
         return res.data;
       }
     } catch (err) {
@@ -35,15 +43,30 @@ export const eventService = {
 
   getEventById(id) {
     const events = this.getAllEvents();
-    return events.find(e => String(e.id) === String(id)) || null;
+    return events.find(e => String(e.id) === String(id) || String(e.id) === `evt_${id}` || String(e.id) === `tp_evt_${id}` || String(e.id) === `ext_evt_${id}`) || null;
   },
 
-  getClubEvents() {
-    return this.getAllEvents().filter(e => e.type === "club_event" && e.status !== "draft");
+  isEventPast(event) {
+    if (!event) return false;
+    if (event.isPast !== undefined) return Boolean(event.isPast);
+    const deadline = event.registrationDeadline || event.startDate;
+    if (!deadline) return false;
+    try {
+      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+      return String(deadline).slice(0, 10) < today;
+    } catch {
+      return String(deadline).slice(0, 10) < new Date().toISOString().split('T')[0];
+    }
   },
 
-  getExternalOpportunities() {
-    return this.getAllEvents().filter(e => e.type === "external_opportunity" && e.status !== "draft");
+  getClubEvents(customList = null, includePast = false) {
+    const list = Array.isArray(customList) ? customList : this.getAllEvents();
+    return list.filter(e => e.type === "club_event" && e.status !== "draft" && (includePast || !this.isEventPast(e)));
+  },
+
+  getExternalOpportunities(customList = null, includePast = false) {
+    const list = Array.isArray(customList) ? customList : this.getAllEvents();
+    return list.filter(e => e.type === "external_opportunity" && e.status !== "draft" && (includePast || !this.isEventPast(e)));
   },
 
   async trackRegistrationClick(id) {
@@ -155,48 +178,64 @@ export const eventService = {
     return true;
   },
 
-  searchAndFilterEvents({ query = '', type = 'all', category = '', city = '', fee = 'all', sort = 'upcoming' }) {
-    let list = this.getAllEvents().filter(e => e.status !== "draft");
+  searchAndFilterEvents({ query = '', type = 'all', category = '', city = '', fee = 'all', sort = 'upcoming', timeline = 'active' }, customList = null) {
+    let list = Array.isArray(customList) ? [...customList] : this.getAllEvents();
+    list = list.filter(e => e && e.status !== "draft");
 
+    // Filter by Timeline (Active vs. Past)
+    if (timeline === 'active') {
+      list = list.filter(e => !this.isEventPast(e));
+    } else if (timeline === 'past') {
+      list = list.filter(e => this.isEventPast(e));
+    }
+
+    // Filter by Type
     if (type && type !== 'all') {
       list = list.filter(e => e.type === type);
     }
 
+    // Filter by Category
     if (category && category !== 'all') {
       list = list.filter(e => e.category?.toLowerCase() === category.toLowerCase());
     }
 
+    // Filter by Fee
     if (fee === 'free') {
       list = list.filter(e => !e.registrationFee || e.registrationFee === 0);
     } else if (fee === 'paid') {
       list = list.filter(e => e.registrationFee && e.registrationFee > 0);
     }
 
-    if (query.trim()) {
+    // Filter by Query
+    if (query && query.trim()) {
       const q = query.toLowerCase();
       list = list.filter(e =>
-        e.title.toLowerCase().includes(q) ||
+        (e.title && e.title.toLowerCase().includes(q)) ||
         (e.subtitle && e.subtitle.toLowerCase().includes(q)) ||
         (e.description && e.description.toLowerCase().includes(q)) ||
         (e.institution && e.institution.toLowerCase().includes(q)) ||
         (e.category && e.category.toLowerCase().includes(q)) ||
         (e.city && e.city.toLowerCase().includes(q)) ||
-        (e.tags && e.tags.some(t => t.toLowerCase().includes(q)))
+        (e.tags && Array.isArray(e.tags) && e.tags.some(t => t.toLowerCase().includes(q)))
       );
     }
 
+    // Filter by City
     if (city && city !== 'all') {
       list = list.filter(e => e.city?.toLowerCase() === city.toLowerCase());
     }
 
-    if (sort === 'upcoming') {
+    // Sorting
+    if (timeline === 'past' && sort === 'upcoming') {
+      list.sort((a, b) => new Date(b.registrationDeadline || b.startDate) - new Date(a.registrationDeadline || a.startDate));
+    } else if (sort === 'upcoming') {
       list.sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
     } else if (sort === 'popular' || sort === 'clicks') {
       list.sort((a, b) => (b.registrationClicks || 0) - (a.registrationClicks || 0));
     } else if (sort === 'views') {
       list.sort((a, b) => (b.viewsCount || 0) - (a.viewsCount || 0));
     } else if (sort === 'recently_added') {
-      list.sort((a, b) => (b.id > a.id ? 1 : -1));
+      list.sort((a, b) => (String(b.id) > String(a.id) ? 1 : -1));
     }
 
     return list;

@@ -11,6 +11,7 @@ export const getAllEvents = async (req, res, next) => {
       city,
       fee,
       sort,
+      timeline,
       includeDrafts
     } = req.query;
 
@@ -21,6 +22,7 @@ export const getAllEvents = async (req, res, next) => {
       city,
       fee,
       sort,
+      timeline: timeline || 'all',
       includeDrafts: includeDrafts === 'true'
     });
 

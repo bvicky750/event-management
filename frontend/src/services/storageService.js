@@ -61,6 +61,14 @@ export const storageService = {
     }
   },
 
+  removeItem(key) {
+    try {
+      localStorage.removeItem(key);
+    } catch (e) {
+      console.error(`Error removing ${key} from localStorage:`, e);
+    }
+  },
+
   resetAllToDefault() {
     localStorage.removeItem(STORAGE_KEYS.EVENTS);
     localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(mockUsers.student));

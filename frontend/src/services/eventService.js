@@ -46,14 +46,27 @@ export const eventService = {
     return events.find(e => String(e.id) === String(id) || String(e.id) === `evt_${id}` || String(e.id) === `tp_evt_${id}` || String(e.id) === `ext_evt_${id}`) || null;
   },
 
-  getClubEvents(customList = null) {
-    const list = Array.isArray(customList) ? customList : this.getAllEvents();
-    return list.filter(e => e.type === "club_event" && e.status !== "draft");
+  isEventPast(event) {
+    if (!event) return false;
+    if (event.isPast !== undefined) return Boolean(event.isPast);
+    const deadline = event.registrationDeadline || event.startDate;
+    if (!deadline) return false;
+    try {
+      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Kolkata' }).format(new Date());
+      return String(deadline).slice(0, 10) < today;
+    } catch {
+      return String(deadline).slice(0, 10) < new Date().toISOString().split('T')[0];
+    }
   },
 
-  getExternalOpportunities(customList = null) {
+  getClubEvents(customList = null, includePast = false) {
     const list = Array.isArray(customList) ? customList : this.getAllEvents();
-    return list.filter(e => e.type === "external_opportunity" && e.status !== "draft");
+    return list.filter(e => e.type === "club_event" && e.status !== "draft" && (includePast || !this.isEventPast(e)));
+  },
+
+  getExternalOpportunities(customList = null, includePast = false) {
+    const list = Array.isArray(customList) ? customList : this.getAllEvents();
+    return list.filter(e => e.type === "external_opportunity" && e.status !== "draft" && (includePast || !this.isEventPast(e)));
   },
 
   async trackRegistrationClick(id) {
@@ -165,9 +178,16 @@ export const eventService = {
     return true;
   },
 
-  searchAndFilterEvents({ query = '', type = 'all', category = '', city = '', fee = 'all', sort = 'upcoming' }, customList = null) {
+  searchAndFilterEvents({ query = '', type = 'all', category = '', city = '', fee = 'all', sort = 'upcoming', timeline = 'active' }, customList = null) {
     let list = Array.isArray(customList) ? [...customList] : this.getAllEvents();
     list = list.filter(e => e && e.status !== "draft");
+
+    // Filter by Timeline (Active vs. Past)
+    if (timeline === 'active') {
+      list = list.filter(e => !this.isEventPast(e));
+    } else if (timeline === 'past') {
+      list = list.filter(e => this.isEventPast(e));
+    }
 
     // Filter by Type
     if (type && type !== 'all') {
@@ -206,7 +226,9 @@ export const eventService = {
     }
 
     // Sorting
-    if (sort === 'upcoming') {
+    if (timeline === 'past' && sort === 'upcoming') {
+      list.sort((a, b) => new Date(b.registrationDeadline || b.startDate) - new Date(a.registrationDeadline || a.startDate));
+    } else if (sort === 'upcoming') {
       list.sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
     } else if (sort === 'popular' || sort === 'clicks') {
       list.sort((a, b) => (b.registrationClicks || 0) - (a.registrationClicks || 0));

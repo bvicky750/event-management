@@ -10,7 +10,9 @@ import {
   ChevronLeft,
   ChevronRight,
   RotateCcw,
-  Sparkles
+  Sparkles,
+  History,
+  AlertCircle
 } from 'lucide-react';
 
 const ITEMS_PER_PAGE = 5;
@@ -40,7 +42,8 @@ export const EventsPage = () => {
     category: searchParams.get('category') || 'all',
     city: searchParams.get('city') || 'all',
     fee: searchParams.get('fee') || 'all',
-    sort: searchParams.get('sort') || 'upcoming'
+    sort: searchParams.get('sort') || 'upcoming',
+    timeline: searchParams.get('timeline') === 'past' ? 'past' : 'active'
   });
 
   const [searchInput, setSearchInput] = useState(filters.query);
@@ -53,11 +56,16 @@ export const EventsPage = () => {
     const city = searchParams.get('city') || 'all';
     const fee = searchParams.get('fee') || 'all';
     const sort = searchParams.get('sort') || 'upcoming';
+    const timeline = searchParams.get('timeline') === 'past' ? 'past' : 'active';
 
-    setFilters({ query: q, type, category, city, fee, sort });
+    setFilters({ query: q, type, category, city, fee, sort, timeline });
     setSearchInput(q);
     setCurrentPage(1);
   }, [searchParams]);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, []);
 
   // Sync URL search params
   const updateParams = (nextFilters) => {
@@ -68,7 +76,15 @@ export const EventsPage = () => {
     if (nextFilters.city && nextFilters.city !== 'all') newParams.set('city', nextFilters.city);
     if (nextFilters.fee && nextFilters.fee !== 'all') newParams.set('fee', nextFilters.fee);
     if (nextFilters.sort && nextFilters.sort !== 'upcoming') newParams.set('sort', nextFilters.sort);
+    if (nextFilters.timeline && nextFilters.timeline === 'past') newParams.set('timeline', 'past');
     setSearchParams(newParams, { replace: true });
+  };
+
+  const handleTimelineChange = (newTimeline) => {
+    setCurrentPage(1);
+    const nextFilters = { ...filters, timeline: newTimeline };
+    setFilters(nextFilters);
+    updateParams(nextFilters);
   };
 
   const handleSearchSubmit = (e) => {
@@ -111,10 +127,13 @@ export const EventsPage = () => {
       category: 'all',
       city: 'all',
       fee: 'all',
-      sort: 'upcoming'
+      sort: 'upcoming',
+      timeline: filters.timeline
     };
     setFilters(emptyFilters);
-    setSearchParams({}, { replace: true });
+    const newParams = new URLSearchParams();
+    if (filters.timeline === 'past') newParams.set('timeline', 'past');
+    setSearchParams(newParams, { replace: true });
   };
 
   // Filter & sort
@@ -149,14 +168,101 @@ export const EventsPage = () => {
   };
 
   const publishedEvents = useMemo(() => events.filter(e => e.status !== 'draft'), [events]);
-  const clubCount = useMemo(() => publishedEvents.filter(e => e.type === 'club_event').length, [publishedEvents]);
-  const extCount = useMemo(() => publishedEvents.filter(e => e.type === 'external_opportunity').length, [publishedEvents]);
+  const activeEventsCount = useMemo(() => publishedEvents.filter(e => !eventService.isEventPast(e)).length, [publishedEvents]);
+  const pastEventsCount = useMemo(() => publishedEvents.filter(e => eventService.isEventPast(e)).length, [publishedEvents]);
+
+  // Current scope events based on active timeline
+  const timelineEvents = useMemo(() => {
+    return publishedEvents.filter(e => filters.timeline === 'past' ? eventService.isEventPast(e) : !eventService.isEventPast(e));
+  }, [publishedEvents, filters.timeline]);
+
+  const clubCount = useMemo(() => timelineEvents.filter(e => e.type === 'club_event').length, [timelineEvents]);
+  const extCount = useMemo(() => timelineEvents.filter(e => e.type === 'external_opportunity').length, [timelineEvents]);
 
   const hasActiveFilters = Boolean(filters.query || filters.type !== 'all' || filters.category !== 'all');
 
   return (
     <div id="events-catalog-container" className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-8 animate-fade-in">
       
+      {/* 0. Primary Timeline Switcher: Active Opportunities vs. Past Opportunities */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-2">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className={`text-xs font-mono font-bold uppercase tracking-wider px-3 py-1 rounded-full border ${
+              filters.timeline === 'past' ? 'bg-amber-100 text-amber-800 border-amber-200' : 'bg-sky-100 text-[#2563EB] border-sky-200'
+            }`}>
+              {filters.timeline === 'past' ? 'Historical Archive' : 'Open Registration'}
+            </span>
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-black text-[#0F172A] font-display tracking-tight mt-2">
+            {filters.timeline === 'past' ? 'Past Opportunities' : 'All Opportunities'}
+          </h1>
+          <p className="text-xs sm:text-sm text-[#5B7B9C] font-medium mt-0.5">
+            {filters.timeline === 'past'
+              ? 'Catalog of previous workshops, hackathons, and placement drives whose registration deadline has passed.'
+              : 'Discover workshops, aptitude training, hackathons, and verified symposiums with open registration.'}
+          </p>
+        </div>
+
+        {/* Segmented Timeline Control Pills */}
+        <div className="inline-flex p-1.5 rounded-2xl bg-white/90 backdrop-blur-md border border-sky-200/80 shadow-sky-card self-stretch sm:self-auto justify-center">
+          <button
+            type="button"
+            onClick={() => handleTimelineChange('active')}
+            className={`flex-1 sm:flex-initial px-5 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              filters.timeline !== 'past'
+                ? 'bg-[#2563EB] text-white shadow-md shadow-blue-500/25 scale-[1.02]'
+                : 'text-[#475569] hover:text-[#0F172A] hover:bg-sky-50/60'
+            }`}
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>Active Opportunities</span>
+            <span className={`px-2 py-0.5 rounded-full text-[11px] font-mono font-bold ${
+              filters.timeline !== 'past' ? 'bg-white/20 text-white' : 'bg-sky-100 text-[#2563EB]'
+            }`}>
+              {activeEventsCount}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleTimelineChange('past')}
+            className={`flex-1 sm:flex-initial px-5 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-extrabold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              filters.timeline === 'past'
+                ? 'bg-[#0F172A] text-white shadow-md scale-[1.02]'
+                : 'text-[#475569] hover:text-[#0F172A] hover:bg-sky-50/60'
+            }`}
+          >
+            <History className="w-4 h-4" />
+            <span>Past Opportunities</span>
+            <span className={`px-2 py-0.5 rounded-full text-[11px] font-mono font-bold ${
+              filters.timeline === 'past' ? 'bg-white/20 text-white' : 'bg-slate-100 text-[#0F172A]'
+            }`}>
+              {pastEventsCount}
+            </span>
+          </button>
+        </div>
+      </div>
+
+      {/* Past Opportunities Info Alert Banner */}
+      {filters.timeline === 'past' && (
+        <div className="rounded-2xl bg-amber-50/90 border border-amber-200/80 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-amber-900 shadow-xs animate-fade-in">
+          <div className="flex items-center gap-2.5">
+            <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+            <div>
+              <span className="font-bold">Viewing Past Opportunities.</span> Registration deadline for these events has passed. Information is archived for student and staff reference.
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => handleTimelineChange('active')}
+            className="px-3 py-1.5 rounded-lg bg-white border border-amber-300 text-xs font-bold text-amber-900 hover:bg-amber-100 transition cursor-pointer flex-shrink-0"
+          >
+            Show Active Only
+          </button>
+        </div>
+      )}
+
       {/* 1. Grand & Bold Sky Search Bar */}
       <div className="w-full rounded-3xl bg-white/80 backdrop-blur-md border border-sky-200/80 p-4 sm:p-6 shadow-sky-card">
         <form onSubmit={handleSearchSubmit} className="relative flex items-center w-full group">
@@ -166,7 +272,7 @@ export const EventsPage = () => {
               type="text"
               value={searchInput}
               onChange={(e) => handleSearchInputChange(e.target.value)}
-              placeholder="Search events"
+              placeholder={filters.timeline === 'past' ? "Search past events by title, topic, or organizer..." : "Search active events..."}
               className="w-full pl-13 sm:pl-16 pr-32 sm:pr-40 py-4 sm:py-5 rounded-full bg-white border-2 sm:border-3 border-[#6AB0E3] focus:border-[#2563EB] text-[#0F172A] placeholder-[#5B7B9C] text-sm sm:text-base font-bold focus:outline-none transition-all shadow-md focus:shadow-xl font-display"
             />
             <button
@@ -203,7 +309,7 @@ export const EventsPage = () => {
             <span className={`text-xs px-2.5 py-0.5 rounded-full font-mono font-bold ${
               filters.type === 'all' ? 'bg-white/20 text-white' : 'bg-sky-100 text-[#0F172A]'
             }`}>
-              {publishedEvents.length}
+              {timelineEvents.length}
             </span>
           </button>
 

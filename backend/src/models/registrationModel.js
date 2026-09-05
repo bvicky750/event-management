@@ -5,25 +5,21 @@ const formatRegistration = (row) => {
   return {
     id: row.id,
     registrationNumber: row.registration_number,
-    studentId: row.student_id,
+    eventId: row.event_id,
     studentName: row.student_name,
     registerNumber: row.register_number,
     department: row.department,
+    year: row.year,
+    college: row.college,
     email: row.email,
     phone: row.phone,
-    eventId: row.event_id,
     eventTitle: row.event_title,
-    college: row.college,
     venue: row.venue,
     eventDates: row.event_dates,
-    activities: typeof row.activities === 'string' ? JSON.parse(row.activities) : (row.activities || []),
     amountPaid: Number(row.amount_paid) || 0,
     paymentStatus: row.payment_status,
     registrationDate: row.registration_date,
-    qrCodeToken: row.qr_code_token,
     status: row.status,
-    attendanceStatus: row.attendance_status,
-    checkInTime: row.check_in_time,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
@@ -37,18 +33,10 @@ export const registrationModel = {
 
   async findById(id) {
     const rows = await query(
-      'SELECT * FROM registrations WHERE id = ? OR registration_number = ? OR qr_code_token = ?',
-      [id, id, id]
+      'SELECT * FROM registrations WHERE id = ? OR registration_number = ?',
+      [id, id]
     );
     return formatRegistration(rows[0]);
-  },
-
-  async findByStudentId(studentId) {
-    const rows = await query(
-      'SELECT * FROM registrations WHERE student_id = ? ORDER BY created_at DESC',
-      [studentId]
-    );
-    return rows.map(formatRegistration);
   },
 
   async findByEventId(eventId) {
@@ -59,10 +47,14 @@ export const registrationModel = {
     return rows.map(formatRegistration);
   },
 
-  async findActiveByStudentAndEvent(studentId, eventId) {
+  async findExisting(eventId, registerNumber, email) {
     const rows = await query(
-      "SELECT * FROM registrations WHERE student_id = ? AND event_id = ? AND status != 'CANCELLED'",
-      [studentId, eventId]
+      `SELECT * FROM registrations 
+       WHERE event_id = ? 
+         AND (register_number = ? OR email = ?) 
+         AND status != 'CANCELLED' 
+       LIMIT 1`,
+      [eventId, registerNumber, email]
     );
     return formatRegistration(rows[0]);
   },
@@ -74,48 +66,34 @@ export const registrationModel = {
 
   async create(data) {
     const id = data.id || `reg_${Date.now()}`;
-    const activitiesJson = JSON.stringify(data.activities || []);
 
     await query(
       `INSERT INTO registrations (
-        id, registration_number, student_id, event_id, student_name, register_number,
-        department, email, phone, event_title, college, venue, event_dates, activities,
-        amount_paid, payment_status, registration_date, qr_code_token, status,
-        attendance_status, check_in_time
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        id, registration_number, event_id, student_name, register_number,
+        department, year, college, email, phone, event_title, venue,
+        event_dates, amount_paid, payment_status, registration_date, status
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         data.registrationNumber,
-        data.studentId,
         data.eventId,
         data.studentName,
         data.registerNumber,
         data.department || null,
-        data.email || null,
+        data.year || null,
+        data.college || 'Paavai Engineering College',
+        data.email,
         data.phone || null,
         data.eventTitle,
-        data.college || null,
         data.venue || null,
         data.eventDates || null,
-        activitiesJson,
         Number(data.amountPaid) || 0.00,
-        data.paymentStatus || 'PAID',
+        data.paymentStatus || 'FREE',
         data.registrationDate,
-        data.qrCodeToken || data.registrationNumber,
-        data.status || 'CONFIRMED',
-        data.attendanceStatus || 'NOT_CHECKED_IN',
-        data.checkInTime || null
+        data.status || 'CONFIRMED'
       ]
     );
 
-    return this.findById(id);
-  },
-
-  async updateAttendance(id, attendanceStatus, checkInTime) {
-    await query(
-      'UPDATE registrations SET attendance_status = ?, check_in_time = ? WHERE id = ? OR registration_number = ?',
-      [attendanceStatus, checkInTime, id, id]
-    );
     return this.findById(id);
   },
 

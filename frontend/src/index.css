@@ -15,14 +15,14 @@
     background-repeat: no-repeat;
     background-color: #EAF6FF;
     color: #0F2238;
-    font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+    font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
     min-height: 100vh;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Space Grotesk', 'Plus Jakarta Sans', sans-serif;
-    letter-spacing: -0.025em;
+    font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+    letter-spacing: -0.015em;
     color: #0F2238;
   }
 }

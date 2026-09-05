@@ -1,42 +1,50 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
   Briefcase,
   Lock,
   Mail,
-  ArrowRight,
-  Sparkles,
   ShieldCheck,
   UserCheck
 } from 'lucide-react';
-import { mockStaffList } from '../../data/users';
 
 export const StaffLoginPage = () => {
-  const { login } = useAuth();
+  const { isStaff, login } = useAuth();
   const navigate = useNavigate();
 
-  const [email, setEmail] = useState('staff@college.edu');
-  const [password, setPassword] = useState('staff123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleStaffLogin = (staffEmail, staffPassword) => {
-    setIsLoading(true);
-    setTimeout(() => {
-      login(staffEmail, staffPassword || 'staff123');
+  // If already logged in as staff, redirect straight to /staff/events
+  useEffect(() => {
+    if (isStaff) {
+      navigate('/staff/events', { replace: true });
+    }
+  }, [isStaff, navigate]);
+
+  const handleStaffLogin = async (staffEmail, staffPassword) => {
+    if (isLoading) return;
+    try {
+      setIsLoading(true);
+      await login(staffEmail, staffPassword);
+      navigate('/staff/events', { replace: true });
+    } catch (err) {
+      console.error('Login error:', err);
+    } finally {
       setIsLoading(false);
-      navigate('/staff/events');
-    }, 450);
+    }
   };
 
-  const handleFormSubmit = (e) => {
+  const handleFormSubmit = async (e) => {
     e.preventDefault();
-    handleStaffLogin(email, password);
+    await handleStaffLogin(email, password);
   };
 
   return (
     <div className="min-h-[85vh] flex items-center justify-center px-4 sm:px-6 py-12">
-      <div className="max-w-xl w-full space-y-8 animate-scale-in">
+      <div className="max-w-md w-full space-y-8 animate-scale-in">
         
         {/* Brand Header */}
         <div className="text-center space-y-3">
@@ -61,60 +69,19 @@ export const StaffLoginPage = () => {
             <div>
               <h3 className="text-xs font-bold text-[#0F2238]">Official Faculty Access</h3>
               <p className="text-[11px] text-[#5B7B9C] leading-relaxed mt-0.5 font-medium">
-                Welcome back! Use this portal to create new opportunities, manage student turnout, and quickly edit your posted events in real-time.
+                Sign in with your authorized faculty credentials to create new opportunities, manage student turnout, and edit events.
               </p>
             </div>
           </div>
         </div>
 
-        {/* 1-Click Quick Faculty Login Presets */}
-        <div className="clay-card p-6 space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-[#6AB0E3] text-xs font-bold uppercase tracking-wider font-mono">
-              <Sparkles className="w-4 h-4 text-[#6AB0E3]" />
-              <span>1-Click Faculty & Staff Login</span>
-            </div>
-            <span className="text-[10px] bg-[#EAF6FF] text-[#6AB0E3] px-2.5 py-1 rounded-full font-bold border border-[#C1E5FF]">
-              Staff Dedicated
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 gap-3">
-            {mockStaffList.map((staff) => (
-              <button
-                key={staff.id}
-                onClick={() => handleStaffLogin(staff.email, 'staff123')}
-                className="clay-card-interactive p-4 text-left flex items-center justify-between group cursor-pointer"
-              >
-                <div className="flex items-center gap-3.5 min-w-0">
-                  <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#EAF6FF] to-[#C1E5FF] text-[#0F2238] flex items-center justify-center font-bold text-xs border border-[#C1E5FF] flex-shrink-0 shadow-xs">
-                    {staff.name.split(' ')[1]?.[0] || 'P'}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="text-xs font-bold text-[#0F2238] truncate">{staff.name}</p>
-                      <span className="text-[9px] bg-[#EAF6FF] text-[#5B7B9C] px-2 py-0.5 rounded-full font-bold border border-[#C1E5FF]">
-                        {staff.activeEventsCount} Events
-                      </span>
-                    </div>
-                    <p className="text-[11px] text-[#5B7B9C] font-medium truncate">
-                      {staff.designation} • {staff.department}
-                    </p>
-                  </div>
-                </div>
-                <ArrowRight className="w-4 h-4 text-[#5B7B9C] group-hover:text-[#6AB0E3] group-hover:translate-x-1 transition-transform flex-shrink-0 ml-2" />
-              </button>
-            ))}
-          </div>
-        </div>
-
         {/* Standard Email & Password Form */}
-        <div className="clay-card p-6 space-y-5">
+        <div className="clay-card p-6 sm:p-8 space-y-5">
           <div className="border-b border-[#EAF6FF] pb-3 flex items-center justify-between">
             <h3 className="text-xs font-bold text-[#0F2238] uppercase tracking-wider font-mono">
               Sign In with Staff Credentials
             </h3>
-            <span className="text-[10px] text-[#5B7B9C]">Paavai Staff Account</span>
+            <span className="text-[10px] text-[#5B7B9C] font-semibold">Authorized Staff Only</span>
           </div>
 
           <form onSubmit={handleFormSubmit} className="space-y-4 text-xs">
@@ -151,7 +118,7 @@ export const StaffLoginPage = () => {
             <button
               type="submit"
               disabled={isLoading}
-              className="clay-btn-primary w-full py-3.5 px-4 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer"
+              className="clay-btn-primary w-full py-3.5 px-4 font-bold text-xs flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
             >
               <UserCheck className="w-4 h-4" />
               <span>{isLoading ? 'Authenticating Staff...' : 'Sign In to Event Console'}</span>
@@ -160,10 +127,10 @@ export const StaffLoginPage = () => {
 
           {/* Alternative Navigation */}
           <div className="pt-2 flex items-center justify-between text-xs border-t border-[#EAF6FF]">
-            <Link to="/login" className="text-[#5B7B9C] hover:text-[#6AB0E3] font-bold transition">
-              ← Student Discovery Login
+            <Link to="/" className="text-[#5B7B9C] hover:text-[#6AB0E3] font-bold transition">
+              ← Return to Home
             </Link>
-            <Link to="/" className="text-[#6AB0E3] hover:underline font-bold transition">
+            <Link to="/opportunities" className="text-[#6AB0E3] hover:underline font-bold transition">
               Explore Opportunities →
             </Link>
           </div>
@@ -173,3 +140,5 @@ export const StaffLoginPage = () => {
     </div>
   );
 };
+
+export default StaffLoginPage;

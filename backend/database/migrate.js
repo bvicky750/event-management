@@ -22,7 +22,7 @@ const dbConfig = {
 
 async function runMigration() {
   console.log('==================================================');
-  console.log('  T&P Club Event Management — Database Setup');
+  console.log('  T&P Club Opportunity Hub — Database Setup');
   console.log('==================================================');
   console.log(`Connecting to MySQL server at ${dbConfig.host}:${dbConfig.port} as "${dbConfig.user}"...`);
 
@@ -51,36 +51,43 @@ async function runMigration() {
     if (fs.existsSync(schemaPath)) {
       const schemaSql = fs.readFileSync(schemaPath, 'utf8');
       await connection.query(schemaSql);
-      console.log(`✓ Schema applied successfully (Tables: users, events, registrations, attendance, od_requests, notifications, past_participation)`);
+      console.log(`✓ Simplified schema applied successfully (Tables: users, events, registrations)`);
     }
 
-    // Step 4: Check if users table is populated, if not seed initial data
-    const [userRows] = await connection.query('SELECT COUNT(*) AS count FROM users');
-    const userCount = userRows[0]?.count || 0;
+    // Step 4: Remove obsolete student users and enforce staff/admin roles
+    await connection.query("DELETE FROM users WHERE role = 'student' OR id LIKE 'stud_%'");
+    try {
+      await connection.query("ALTER TABLE users MODIFY COLUMN role ENUM('staff', 'admin') NOT NULL DEFAULT 'staff'");
+    } catch (e) {}
 
-    if (userCount === 0) {
-      console.log('Seeding initial development data...');
-      const { users } = getSeedData();
+    // Step 5: Seed/Update Staff Accounts
+    const { users: staffUsers } = getSeedData();
+    for (const u of staffUsers) {
+      await connection.query(
+        `INSERT INTO users (
+          id, name, email, password_hash, role, department, phone, college,
+          avatar, employee_id, designation, cabin, status
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE 
+          name = VALUES(name),
+          password_hash = VALUES(password_hash),
+          role = VALUES(role),
+          department = VALUES(department),
+          designation = VALUES(designation)`,
+        [
+          u.id, u.name, u.email, u.password_hash, u.role, u.department, u.phone, u.college,
+          u.avatar, u.employee_id, u.designation, u.cabin, u.status
+        ]
+      );
+    }
+    console.log(`✓ Seeded/Updated ${staffUsers.length} staff administrator accounts`);
 
-      // Seed Users
-      for (const u of users) {
-        await connection.query(
-          `INSERT INTO users (
-            id, name, email, password_hash, role, department, phone, college,
-            avatar, register_number, year, semester, section, cgpa,
-            attendance_percentage, employee_id, designation, cabin, status
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          ON DUPLICATE KEY UPDATE name = VALUES(name)`,
-          [
-            u.id, u.name, u.email, u.password_hash, u.role, u.department, u.phone, u.college,
-            u.avatar, u.register_number, u.year, u.semester, u.section, u.cgpa,
-            u.attendance_percentage, u.employee_id, u.designation, u.cabin, u.status
-          ]
-        );
-      }
-      console.log(`✓ Seeded ${users.length} initial user accounts (Students & Staff)`);
+    // Step 5: Check and seed initial events if empty
+    const [eventRows] = await connection.query('SELECT COUNT(*) AS count FROM events');
+    const eventCount = eventRows[0]?.count || 0;
 
-      // Seed Initial Events
+    if (eventCount === 0) {
+      console.log('Seeding initial verified opportunities...');
       const initialEvents = [
         {
           id: "tp_evt_1",
@@ -118,8 +125,7 @@ async function runMigration() {
             "Live 1-on-1 Resume Roasting & Formatting"
           ]),
           tags: JSON.stringify(["Resume", "Placement", "ATS", "Career", "Free"]),
-          activities: JSON.stringify([]),
-          od_config: JSON.stringify({ available: true, requiresApproval: true, eligibleYears: ["2nd Year", "3rd Year", "Final Year"], maxDays: 1 })
+          activities: JSON.stringify([])
         },
         {
           id: "tp_evt_2",
@@ -157,372 +163,145 @@ async function runMigration() {
             "Detailed Performance Scorecard & Feedback"
           ]),
           tags: JSON.stringify(["Mock Interview", "Placement", "HR Round", "DSA", "On-Campus"]),
-          activities: JSON.stringify([]),
-          od_config: JSON.stringify({ available: true, requiresApproval: true, eligibleYears: ["3rd Year", "Final Year"], maxDays: 1 })
+          activities: JSON.stringify([])
         },
         {
           id: "tp_evt_3",
-          title: "Aptitude Challenge #04 — Speed & Logic Battle",
-          subtitle: "Weekly online diagnostic challenge covering quantitative, logical, and verbal tracks",
+          title: "Speed Aptitude Battle — TCS NQT & Cognizant Pattern",
+          subtitle: "Weekly speed diagnostic covering Quants, Logical Reasoning & Verbal Ability",
           type: "club_event",
           category: "Aptitude",
-          description: "Test your speed and accuracy against your batchmates. Weekly 45-minute timed test featuring company-pattern questions from AMCAT, CoCubes, eLitmus, and TCS NQT.",
-          full_description: "Aptitude round is the first filter in 90% of on-campus placement drives. T&P Club conducts this weekly challenge to build your test stamina and speed. Detailed video solutions, ranking leaderboards, and accuracy analytics will be shared immediately after the challenge concludes.",
-          poster: "https://images.unsplash.com/photo-1606326608606-aa0b62935f2b?w=1000&auto=format&fit=crop&q=80",
-          start_date: "2026-08-30",
-          end_date: "2026-08-30",
-          start_time: "07:00 PM",
-          end_time: "08:00 PM",
-          venue: "Online Portal / Hackerrank",
-          city: "Online",
+          description: "Online 60-minute aptitude test simulating the latest TCS NQT, Accenture, and Cognizant assessment patterns with real-time rank lists and solution analysis.",
+          full_description: "Speed and accuracy in quantitative aptitude and verbal reasoning make or break mass hiring rounds. Join 400+ peers in this timed challenge hosted on our campus testing platform. Immediate rank breakdown by section.",
+          poster: "https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=1000&auto=format&fit=crop&q=80",
+          start_date: "2026-08-26",
+          end_date: "2026-08-26",
+          start_time: "05:30 PM",
+          end_time: "06:45 PM",
+          venue: "Central Computing Facility (Lab 4)",
+          city: "On-Campus",
           institution: "Training & Placement Club",
-          department: "T&P Aptitude Training Wing",
+          department: "T&P Aptitude Division",
           registration_fee: 0,
-          registration_deadline: "2026-08-30",
-          registration_url: "https://hackerrank.com/tnp-aptitude-04-demo",
-          views_count: 710,
-          registration_clicks: 340,
+          registration_deadline: "2026-08-26",
+          registration_url: "https://forms.google.com/d/e/1FAIpQLSe-demo-aptitude-battle/viewform",
+          views_count: 388,
+          registration_clicks: 140,
           status: "published",
           featured: 0,
-          eligibility: "All engineering batches and branches",
-          created_by: "staff_001",
-          coordinator_name: "Sneha M (Aptitude Coordinator)",
-          coordinator_email: "aptitude.tnp@college.edu",
-          coordinator_phone: "+91 98421 99887",
+          eligibility: "All engineering students (1st to Final Year)",
+          created_by: "staff_002",
+          coordinator_name: "Prof. S. Meenakshi",
+          coordinator_email: "meenakshi.it@college.edu",
+          coordinator_phone: "+91 94432 10988",
           topics: JSON.stringify([
-            "Quantitative Aptitude (Time & Work, Percentages, Probability)",
-            "Logical Reasoning (Puzzles, Blood Relations, Syllogisms)",
-            "Verbal Ability (Error Spotting, Reading Comprehension)"
+            "Quantitative Aptitude (Percentages, Profit/Loss, Time & Work)",
+            "Logical Reasoning (Coding-Decoding, Puzzles)",
+            "Verbal Ability & Reading Comprehension"
           ]),
-          tags: JSON.stringify(["Aptitude", "Online Challenge", "TCS NQT", "Practice", "Free"]),
-          activities: JSON.stringify([]),
-          od_config: JSON.stringify({ available: false, requiresApproval: false, eligibleYears: [], maxDays: 0 })
+          tags: JSON.stringify(["Aptitude", "NQT", "Placement Test", "Speed Battle"]),
+          activities: JSON.stringify([])
         },
         {
           id: "ext_evt_1",
-          title: "TECHFINIX'26 — National Level Technical Symposium",
-          subtitle: "Flagship annual symposium featuring AI hackathons, paper presentations, and edge computing",
-          type: "external_opportunity",
-          category: "Symposium",
-          description: "Two-day national symposium hosted by the Department of CSE (AI & ML) at Paavai Engineering College. Over 1,500 students from 80+ engineering institutions participate in technical challenges with cash prizes over ₹50,000.",
-          full_description: "TECHFINIX'26 is one of the region's largest student technical festivals. Features 5 competitive tracks including AI Vision Craft (OpenCV/PyTorch model deployment), National Paper Presentation, AI Tri Quest coding relay, Edge AI Masterclass, and fun technical mini-games. Great networking opportunity and external certificate recognition.",
-          poster: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=1000&auto=format&fit=crop&q=80",
-          start_date: "2026-09-10",
-          end_date: "2026-09-11",
-          start_time: "09:00 AM",
-          end_time: "04:30 PM",
-          venue: "Main Auditorium & Labs",
-          city: "Namakkal",
-          institution: "Paavai Engineering College",
-          department: "Department of CSE (AI & ML)",
-          registration_fee: 250,
-          registration_deadline: "2026-09-05",
-          registration_url: "https://techfinix26.paavai.edu.in/register",
-          views_count: 890,
-          registration_clicks: 312,
-          status: "published",
-          featured: 1,
-          eligibility: "Engineering students from all accredited colleges and universities",
-          created_by: "staff_002",
-          coordinator_name: "Prof. N. Sivakumar (Convenor)",
-          coordinator_email: "techfinix2026@paavai.edu.in",
-          coordinator_phone: "+91 94432 99881",
-          topics: JSON.stringify([
-            "AI Vision Craft (Live Computer Vision Challenge)",
-            "National Paper Presentation on GenAI & Cloud",
-            "AI Tri-Quest Speed Coding Challenge",
-            "Edge AI & Embedded Machine Learning Session"
-          ]),
-          tags: JSON.stringify(["Symposium", "AI", "External", "Cash Prizes", "Namakkal"]),
-          activities: JSON.stringify([
-            { name: "Paper Presentation", fee: 150 },
-            { name: "AI Vision Craft", fee: 200 }
-          ]),
-          od_config: JSON.stringify({ available: true, requiresApproval: true, eligibleYears: ["2nd Year", "3rd Year", "Final Year"], maxDays: 2 })
-        },
-        {
-          id: "ext_evt_2",
           title: "CODEFEST 2026 — 24-Hour State Level Hackathon",
-          subtitle: "24-Hour non-stop product building sprint with industry mentors and cash prizes",
+          subtitle: "Build production-ready prototypes with industry mentors and cash prizes up to ₹1,50,000",
           type: "external_opportunity",
           category: "Hackathon",
-          description: "Build innovative software and hardware prototypes in a 24-hour non-stop hackathon. Problem statements cover Smart Healthcare, FinTech, Autonomous Mobility, and Climate Tech.",
-          full_description: "CodeFest 2026 provides full high-speed lab connectivity, hardware sensor kits, cloud credits from AWS, and on-site mentors from startup founders. Top 3 teams win cash awards of ₹1,00,000 along with direct internship interview opportunities with partner firms.",
+          description: "24-Hour non-stop product building sprint organized at KSR College of Engineering. Tracks include Generative AI, Web3 & FinTech, Smart Healthcare, and Open Innovation.",
+          full_description: "CODEFEST 2026 brings together the top student coders across Tamil Nadu. Work under direct mentorship from tech leads at leading SaaS companies. Free food, stay, and API credits provided for shortlisted teams.",
           poster: "https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=1000&auto=format&fit=crop&q=80",
           start_date: "2026-08-25",
           end_date: "2026-08-26",
           start_time: "10:00 AM",
-          end_time: "10:00 AM (Next Day)",
-          venue: "KSR Convention Center",
+          end_time: "10:00 AM",
+          venue: "KSR Innovation Hub, KSR College of Engineering",
           city: "Tiruchengode",
           institution: "KSR College of Engineering",
-          department: "Information Technology & Innovation Cell",
+          department: "Department of Information Technology",
           registration_fee: 300,
           registration_deadline: "2026-08-24",
-          registration_url: "https://codefest2026.ksrce.ac.in",
-          views_count: 780,
-          registration_clicks: 245,
+          registration_url: "https://codefest2026-ksr.devpost.com",
+          views_count: 852,
+          registration_clicks: 340,
           status: "published",
           featured: 1,
-          eligibility: "Teams of 2–4 students from any branch or year",
-          created_by: "staff_002",
+          eligibility: "Teams of 2-4 members from any recognized university",
+          created_by: "staff_001",
           coordinator_name: "Prof. S. Meenakshi & Student Leads",
           coordinator_email: "codefest2026@ksrce.ac.in",
-          coordinator_phone: "+91 98421 65432",
+          coordinator_phone: "+91 98421 55667",
           topics: JSON.stringify([
-            "24-Hour End-to-End Prototype Development",
-            "1-on-1 Mentorship & Architecture Reviews",
-            "Pitch Deck Presentation to VC Jury",
-            "Networking with Regional Tech Communities"
+            "Round 1: Abstract & Architecture Submission",
+            "Round 2: 24-Hour Prototype Coding Sprint",
+            "Round 3: Grand Jury Pitching & Live Demo"
           ]),
-          tags: JSON.stringify(["Hackathon", "24-Hours", "External", "Cash Prize ₹1L", "Tiruchengode"]),
-          activities: JSON.stringify([
-            { name: "24-Hour Prototype Sprint", fee: 300 }
+          tags: JSON.stringify(["Hackathon", "External", "Cash Prize", "AI", "KSR"]),
+          activities: JSON.stringify([])
+        },
+        {
+          id: "ext_evt_2",
+          title: "Edge AI & Embedded TinyML Hands-on Masterclass",
+          subtitle: "Deploy deep neural networks on ESP32 & Raspberry Pi Pico hardware",
+          type: "external_opportunity",
+          category: "Workshop",
+          description: "Two-day intensive hardware lab organized by Sona College of Technology. Hardware kits provided for hands-on sensory data processing and on-device machine learning inference.",
+          full_description: "Learn how to optimize and quantize machine learning models to run directly on microcontrollers without cloud connectivity. Build gesture-recognition devices and real-time acoustic defect detectors.",
+          poster: "https://images.unsplash.com/photo-1518770660439-4636190af475?w=1000&auto=format&fit=crop&q=80",
+          start_date: "2026-09-02",
+          end_date: "2026-09-03",
+          start_time: "09:00 AM",
+          end_time: "05:00 PM",
+          venue: "IoT Excellence Center, Sona College of Technology",
+          city: "Salem",
+          institution: "Sona College of Technology",
+          department: "ECE & Mechatronics",
+          registration_fee: 450,
+          registration_deadline: "2026-08-30",
+          registration_url: "https://sonatech.ac.in/events/edge-ai-workshop-2026",
+          views_count: 512,
+          registration_clicks: 180,
+          status: "published",
+          featured: 0,
+          eligibility: "ECE, EEE, CSE, IT & Mechatronics students",
+          created_by: "staff_003",
+          coordinator_name: "Dr. R. Balaji (Event Advisor)",
+          coordinator_email: "edgeai.workshop@sonatech.ac.in",
+          coordinator_phone: "+91 94432 10989",
+          topics: JSON.stringify([
+            "TensorFlow Lite for Microcontrollers",
+            "Sensor Interfacing with ESP32-S3",
+            "Real-time Audio & Vision Classification at 15mW"
           ]),
-          od_config: JSON.stringify({ available: true, requiresApproval: true, eligibleYears: ["2nd Year", "3rd Year", "Final Year"], maxDays: 2 })
+          tags: JSON.stringify(["Workshop", "Edge AI", "TinyML", "Hardware", "External"]),
+          activities: JSON.stringify([])
         }
       ];
 
-      for (const ev of initialEvents) {
+      for (const e of initialEvents) {
         await connection.query(
           `INSERT INTO events (
-            id, title, subtitle, type, category, description, full_description, poster,
-            start_date, end_date, start_time, end_time, venue, city, institution, department,
-            registration_fee, registration_deadline, registration_url, views_count, registration_clicks,
-            status, featured, eligibility, created_by, coordinator_name, coordinator_email,
-            coordinator_phone, topics, tags, activities, od_config
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            id, title, subtitle, type, category, description, full_description,
+            poster, start_date, end_date, start_time, end_time, venue, city,
+            institution, department, registration_fee, registration_deadline,
+            registration_url, views_count, registration_clicks, status, featured,
+            eligibility, created_by, coordinator_name, coordinator_email,
+            coordinator_phone, topics, tags, activities
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON DUPLICATE KEY UPDATE title = VALUES(title)`,
           [
-            ev.id, ev.title, ev.subtitle, ev.type, ev.category, ev.description, ev.full_description, ev.poster,
-            ev.start_date, ev.end_date, ev.start_time, ev.end_time, ev.venue, ev.city, ev.institution, ev.department,
-            ev.registration_fee, ev.registration_deadline, ev.registration_url, ev.views_count, ev.registration_clicks,
-            ev.status, ev.featured, ev.eligibility, ev.created_by, ev.coordinator_name, ev.coordinator_email,
-            ev.coordinator_phone, ev.topics, ev.tags, ev.activities, ev.od_config
+            e.id, e.title, e.subtitle, e.type, e.category, e.description, e.full_description,
+            e.poster, e.start_date, e.end_date, e.start_time, e.end_time, e.venue, e.city,
+            e.institution, e.department, e.registration_fee, e.registration_deadline,
+            e.registration_url, e.views_count, e.registration_clicks, e.status, e.featured,
+            e.eligibility, e.created_by, e.coordinator_name, e.coordinator_email,
+            e.coordinator_phone, e.topics, e.tags, e.activities
           ]
         );
       }
-      console.log(`✓ Seeded ${initialEvents.length} initial opportunities & events`);
-
-      // Seed Initial Registrations
-      const initialRegistrations = [
-        {
-          id: "reg_001",
-          registration_number: "REG-DEMO-2026-001",
-          student_id: "stud_001",
-          student_name: "Vignesh B",
-          register_number: "23CSE001",
-          department: "Computer Science and Engineering",
-          email: "student@college.edu",
-          phone: "+91 98765 43210",
-          event_id: "ext_evt_2",
-          event_title: "CODEFEST 2026 — 24-Hour State Level Hackathon",
-          college: "KSR College of Engineering",
-          venue: "KSR Convention Center, Tiruchengode",
-          event_dates: "2026-08-25 - 2026-08-26",
-          activities: JSON.stringify(["24-Hour Prototype Sprint"]),
-          amount_paid: 300,
-          payment_status: "PAID",
-          registration_date: "2026-08-15 03:30 PM",
-          qr_code_token: "REG-DEMO-2026-001",
-          status: "CONFIRMED",
-          attendance_status: "NOT_CHECKED_IN",
-          check_in_time: null
-        },
-        {
-          id: "reg_002",
-          registration_number: "REG-DEMO-2026-002",
-          student_id: "stud_002",
-          student_name: "Ananya S",
-          register_number: "23IT042",
-          department: "Information Technology",
-          email: "ananya.23it@college.edu",
-          phone: "+91 98765 43211",
-          event_id: "ext_evt_1",
-          event_title: "TECHFINIX'26 — National Level Technical Symposium",
-          college: "Paavai Engineering College",
-          venue: "Main Auditorium & Labs",
-          event_dates: "2026-09-10 - 2026-09-11",
-          activities: JSON.stringify(["Paper Presentation"]),
-          amount_paid: 250,
-          payment_status: "PAID",
-          registration_date: "2026-08-16 05:00 PM",
-          qr_code_token: "REG-DEMO-2026-002",
-          status: "CONFIRMED",
-          attendance_status: "PRESENT",
-          check_in_time: "09:12 AM"
-        }
-      ];
-
-      for (const r of initialRegistrations) {
-        await connection.query(
-          `INSERT INTO registrations (
-            id, registration_number, student_id, event_id, student_name, register_number,
-            department, email, phone, event_title, college, venue, event_dates, activities,
-            amount_paid, payment_status, registration_date, qr_code_token, status,
-            attendance_status, check_in_time
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          ON DUPLICATE KEY UPDATE student_name = VALUES(student_name)`,
-          [
-            r.id, r.registration_number, r.student_id, r.event_id, r.student_name, r.register_number,
-            r.department, r.email, r.phone, r.event_title, r.college, r.venue, r.event_dates, r.activities,
-            r.amount_paid, r.payment_status, r.registration_date, r.qr_code_token, r.status,
-            r.attendance_status, r.check_in_time
-          ]
-        );
-      }
-      console.log(`✓ Seeded ${initialRegistrations.length} initial registrations`);
-
-      // Seed Initial Attendance Records
-      await connection.query(
-        `INSERT INTO attendance (
-          id, event_id, registration_id, student_id, student_name, register_number,
-          department, check_in_time, date, status, verified_by, verified_by_user_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE status = VALUES(status)`,
-        [
-          "att_001", "ext_evt_1", "reg_002", "stud_002", "Ananya S", "23IT042",
-          "Information Technology", "09:12 AM", "2026-09-10", "PRESENT", "Dr. K. Ramanathan", "staff_001"
-        ]
-      );
-      console.log(`✓ Seeded initial attendance records`);
-
-      // Seed Initial OD Requests
-      const initialODRequests = [
-        {
-          id: "od_req_001",
-          student_id: "stud_001",
-          student_name: "Vignesh B",
-          register_number: "23CSE001",
-          department: "Computer Science and Engineering",
-          year: "2nd Year",
-          email: "student@college.edu",
-          phone: "+91 98765 43210",
-          event_id: "ext_evt_2",
-          event_title: "CODEFEST 2026 — 24-Hour State Level Hackathon",
-          college: "KSR College of Engineering",
-          event_dates: "2026-08-25 - 2026-08-26",
-          start_date: "2026-08-25",
-          end_date: "2026-08-26",
-          od_duration: "2 Days (Full Day)",
-          selected_activities: JSON.stringify(["24-Hour Prototype Sprint"]),
-          reason: "Representing our college in the Smart Healthcare track with our AI diagnosis prototype.",
-          status: "APPROVED",
-          applied_at: "2026-08-14 11:30 AM",
-          reviewed_at: "2026-08-15 02:15 PM",
-          reviewed_by: "Dr. K. Ramanathan",
-          reviewed_by_user_id: "staff_001",
-          rejection_reason: null
-        },
-        {
-          id: "od_req_002",
-          student_id: "stud_002",
-          student_name: "Ananya S",
-          register_number: "23IT042",
-          department: "Information Technology",
-          year: "2nd Year",
-          email: "ananya.23it@college.edu",
-          phone: "+91 98765 43211",
-          event_id: "ext_evt_1",
-          event_title: "TECHFINIX'26 — National Level Technical Symposium",
-          college: "Paavai Engineering College",
-          event_dates: "2026-09-10 - 2026-09-11",
-          start_date: "2026-09-10",
-          end_date: "2026-09-11",
-          od_duration: "2 Days (Full Day)",
-          selected_activities: JSON.stringify(["Paper Presentation"]),
-          reason: "Selected for presenting research paper on 'Privacy-Preserving Federated Learning in Healthcare'.",
-          status: "PENDING",
-          applied_at: "2026-08-16 04:45 PM",
-          reviewed_at: null,
-          reviewed_by: null,
-          reviewed_by_user_id: null,
-          rejection_reason: null
-        }
-      ];
-
-      for (const od of initialODRequests) {
-        await connection.query(
-          `INSERT INTO od_requests (
-            id, student_id, student_name, register_number, department, year, email, phone,
-            event_id, event_title, college, event_dates, start_date, end_date, od_duration,
-            selected_activities, reason, status, applied_at, reviewed_at, reviewed_by,
-            reviewed_by_user_id, rejection_reason
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-          ON DUPLICATE KEY UPDATE status = VALUES(status)`,
-          [
-            od.id, od.student_id, od.student_name, od.register_number, od.department, od.year, od.email, od.phone,
-            od.event_id, od.event_title, od.college, od.event_dates, od.start_date, od.end_date, od.od_duration,
-            od.selected_activities, od.reason, od.status, od.applied_at, od.reviewed_at, od.reviewed_by,
-            od.reviewed_by_user_id, od.rejection_reason
-          ]
-        );
-      }
-      console.log(`✓ Seeded ${initialODRequests.length} initial OD requests`);
-
-      // Seed Initial Notifications
-      const initialNotifications = [
-        {
-          id: "notif_001",
-          recipient_role: "student",
-          recipient_id: "stud_001",
-          title: "OD Request Approved! 🎉",
-          message: "Your On-Duty (OD) application for CODEFEST 2026 has been approved by Dr. K. Ramanathan. You may now proceed with final registration.",
-          type: "success",
-          timestamp: "2026-08-15 02:15 PM",
-          is_read: 0,
-          link: "/student/od"
-        },
-        {
-          id: "notif_002",
-          recipient_role: "student",
-          recipient_id: "stud_001",
-          title: "Registration Confirmed 🎟️",
-          message: "Registration for CODEFEST 2026 is confirmed. Your Pass ID is REG-DEMO-2026-001.",
-          type: "info",
-          timestamp: "2026-08-15 03:30 PM",
-          is_read: 1,
-          link: "/student/registrations/reg_001"
-        },
-        {
-          id: "notif_003",
-          recipient_role: "staff",
-          recipient_id: "staff_001",
-          title: "New OD Request Pending Review",
-          message: "Ananya S (23IT042) submitted an OD request for TECHFINIX'26.",
-          type: "action_required",
-          timestamp: "2026-08-16 04:45 PM",
-          is_read: 0,
-          link: "/staff/od"
-        }
-      ];
-
-      for (const n of initialNotifications) {
-        await connection.query(
-          `INSERT INTO notifications (
-            id, recipient_role, recipient_id, title, message, type, timestamp, is_read, link
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-          ON DUPLICATE KEY UPDATE title = VALUES(title)`,
-          [n.id, n.recipient_role, n.recipient_id, n.title, n.message, n.type, n.timestamp, n.is_read, n.link]
-        );
-      }
-      console.log(`✓ Seeded ${initialNotifications.length} initial notifications`);
-
-      // Seed Past Participation
-      await connection.query(
-        `INSERT INTO past_participation (
-          id, student_id, event_title, organizer_college, date, category,
-          od_status, registration_status, attendance_status, certificate_url, achievement
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE achievement = VALUES(achievement)`,
-        [
-          "part_001", "stud_001", "KAIZEN '25 — National CAD Fest", "Kongu Engineering College",
-          "14 Feb 2025", "Workshop", "Approved", "Registered", "Attended", "#", "Participant"
-        ]
-      );
-      console.log(`✓ Seeded past participation records`);
+      console.log(`✓ Seeded ${initialEvents.length} initial verified opportunities`);
     } else {
-      console.log(`ℹ Database already contains ${userCount} users. Skipping initial seed.`);
+      console.log(`ℹ Database already contains ${eventCount} events.`);
     }
 
     console.log('==================================================');

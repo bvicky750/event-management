@@ -9,12 +9,14 @@ import {
   Clock,
   Tag
 } from 'lucide-react';
+import { eventService } from '../../services/eventService';
 
 export const EventCard = ({ event, variant = 'horizontal' }) => {
   if (!event) return null;
 
   const isClubEvent = event.type === 'club_event';
   const isFree = !event.registrationFee || event.registrationFee === 0;
+  const isPast = event.isPast !== undefined ? event.isPast : eventService.isEventPast(event);
 
   // Format date
   const formatDate = (dateStr) => {
@@ -29,20 +31,20 @@ export const EventCard = ({ event, variant = 'horizontal' }) => {
   // Standard 3-column Grid Variant (for homepage grid)
   if (variant === 'standard' || variant === 'standard_grid') {
     return (
-      <div className="group rounded-3xl bg-white/90 backdrop-blur-md border-2 border-sky-100 hover:border-[#2563EB]/60 hover:bg-white transition-all duration-300 flex flex-col justify-between overflow-hidden shadow-sky-card hover:shadow-xl">
+      <div className={`group rounded-3xl bg-white/90 backdrop-blur-md border-2 ${isPast ? 'border-slate-200/80' : 'border-sky-100 hover:border-[#2563EB]/60'} hover:bg-white transition-all duration-300 flex flex-col justify-between overflow-hidden shadow-sky-card hover:shadow-xl`}>
         <div>
           {/* Poster Frame */}
           <div className="relative aspect-[16/10] overflow-hidden bg-[#EAF6FF]">
             <img
               src={event.poster}
               alt={event.title}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ${isPast ? 'grayscale-[25%] opacity-90' : ''}`}
               loading="lazy"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-[#0F2238]/60 via-transparent to-transparent opacity-70" />
 
-            {/* Type Badge */}
-            <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
+            {/* Badges on Image */}
+            <div className="absolute top-3 left-3 right-3 flex items-center justify-between gap-1.5">
               <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider shadow-xs ${
                 isClubEvent
                   ? 'bg-[#2563EB] text-white'
@@ -50,6 +52,12 @@ export const EventCard = ({ event, variant = 'horizontal' }) => {
               }`}>
                 {isClubEvent ? '★ T&P Club' : 'External'}
               </span>
+
+              {isPast && (
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-600 text-white shadow-xs">
+                  Registration Closed
+                </span>
+              )}
             </div>
 
             {/* Fee & Date overlay */}
@@ -94,14 +102,14 @@ export const EventCard = ({ event, variant = 'horizontal' }) => {
 
         {/* Footer / CTA */}
         <div className="p-5 pt-0 mt-2 border-t border-[#EAF6FF] flex items-center justify-between">
-          <span className="text-[11px] text-[#5B7B9C] font-semibold">
-            Closes {formatDate(event.registrationDeadline)}
+          <span className={`text-[11px] font-semibold ${isPast ? 'text-rose-600' : 'text-[#5B7B9C]'}`}>
+            {isPast ? `Closed on ${formatDate(event.registrationDeadline)}` : `Closes ${formatDate(event.registrationDeadline)}`}
           </span>
           <Link
             to={`/events/${event.id}`}
             className="inline-flex items-center gap-1 text-xs font-bold text-[#2563EB] hover:text-[#1D4ED8] transition group-hover:translate-x-0.5"
           >
-            <span>Details</span>
+            <span>{isPast ? 'View' : 'Details'}</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
@@ -111,20 +119,20 @@ export const EventCard = ({ event, variant = 'horizontal' }) => {
 
   // Horizontal Card Variant (Matching Image 2 Reference layout: Image | Headline + Description + Organiser | Venue + Time + Apply)
   return (
-    <div className="group rounded-3xl bg-white/90 backdrop-blur-md border-2 border-sky-100 hover:border-[#2563EB]/50 hover:bg-white transition-all duration-300 shadow-sky-card hover:shadow-xl p-5 sm:p-6 flex flex-col md:flex-row items-stretch justify-between gap-5 sm:gap-6">
+    <div className={`group rounded-3xl bg-white/90 backdrop-blur-md border-2 ${isPast ? 'border-slate-200/80' : 'border-sky-100 hover:border-[#2563EB]/50'} hover:bg-white transition-all duration-300 shadow-sky-card hover:shadow-xl p-5 sm:p-6 flex flex-col md:flex-row items-stretch justify-between gap-5 sm:gap-6`}>
       
       {/* 1. Left: Event Image Thumbnail with Badges */}
       <div className="md:w-44 lg:w-48 flex-shrink-0 relative rounded-2xl overflow-hidden aspect-[16/10] md:aspect-square bg-sky-50 shadow-xs border border-sky-100">
         <img
           src={event.poster}
           alt={event.title}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ${isPast ? 'grayscale-[20%] opacity-90' : ''}`}
           loading="lazy"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/50 via-transparent to-transparent opacity-70" />
         
-        {/* Type Badge on Image */}
-        <div className="absolute top-2.5 left-2.5">
+        {/* Type & Closed Badges on Image */}
+        <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between gap-1">
           <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm ${
             isClubEvent
               ? 'bg-[#2563EB] text-white'
@@ -132,6 +140,12 @@ export const EventCard = ({ event, variant = 'horizontal' }) => {
           }`}>
             {isClubEvent ? '★ T&P Club' : '🌐 External'}
           </span>
+
+          {isPast && (
+            <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-rose-600 text-white shadow-xs">
+              Closed
+            </span>
+          )}
         </div>
 
         {/* Fee Badge on Bottom of Image */}
@@ -221,13 +235,17 @@ export const EventCard = ({ event, variant = 'horizontal' }) => {
         <div className="w-full">
           <Link
             to={`/events/${event.id}`}
-            className="w-full py-3 px-5 rounded-2xl bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-extrabold text-xs sm:text-sm transition-all shadow-md shadow-blue-500/25 flex items-center justify-center gap-2 group/btn hover:scale-[1.02] cursor-pointer"
+            className={`w-full py-3 px-5 rounded-2xl font-extrabold text-xs sm:text-sm transition-all shadow-md flex items-center justify-center gap-2 group/btn hover:scale-[1.02] cursor-pointer ${
+              isPast
+                ? 'bg-slate-800 hover:bg-slate-900 text-white shadow-slate-800/20'
+                : 'bg-[#2563EB] hover:bg-[#1D4ED8] text-white shadow-blue-500/25'
+            }`}
           >
-            <span>View Details & Register</span>
+            <span>{isPast ? 'View Past Opportunity' : 'View Details & Register'}</span>
             <ArrowRight className="w-4 h-4 group-hover/btn:translate-x-1 transition-transform" />
           </Link>
           <p className="text-[10px] text-[#64748B] font-bold text-center md:text-right mt-1.5">
-            Closes: {formatDate(event.registrationDeadline)}
+            {isPast ? `Closed on ${formatDate(event.registrationDeadline)}` : `Closes: ${formatDate(event.registrationDeadline)}`}
           </p>
         </div>
 

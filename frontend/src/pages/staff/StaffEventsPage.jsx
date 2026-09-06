@@ -32,10 +32,12 @@ import { Button } from '../../components/common/Button';
 import { EmptyState } from '../../components/common/EmptyState';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { SearchBar } from '../../components/common/SearchBar';
+import { useToast } from '../../context/ToastContext';
 
 export const StaffEventsPage = () => {
   const { events, deleteEvent, updateEvent } = useData();
   const { user } = useAuth();
+  const { addToast } = useToast();
 
   const [activeTab, setActiveTab] = useState('my_events');
   const [query, setQuery] = useState('');
@@ -95,10 +97,16 @@ export const StaffEventsPage = () => {
     );
   }
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (deleteEventId) {
-      deleteEvent(deleteEventId);
-      setDeleteEventId(null);
+      try {
+        await deleteEvent(deleteEventId);
+        addToast('Event deleted successfully', 'success');
+      } catch (err) {
+        addToast(err?.message || 'Failed to delete event', 'error');
+      } finally {
+        setDeleteEventId(null);
+      }
     }
   };
 
@@ -116,20 +124,29 @@ export const StaffEventsPage = () => {
     });
   };
 
-  const handleQuickEditSubmit = (e) => {
+  const handleQuickEditSubmit = async (e) => {
     e.preventDefault();
     if (!quickEditEvent) return;
-    setIsSavingQuick(true);
+    if (!quickFormData.title?.trim()) {
+      addToast('Event title is required', 'error');
+      return;
+    }
 
-    setTimeout(() => {
-      updateEvent(quickEditEvent.id, {
+    setIsSavingQuick(true);
+    try {
+      await updateEvent(quickEditEvent.id, {
         ...quickFormData,
+        title: quickFormData.title.trim(),
         capacity: Number(quickFormData.capacity) || 100,
         registrationFee: Number(quickFormData.registrationFee) || 0
       });
-      setIsSavingQuick(false);
+      addToast('Event updated successfully', 'success');
       setQuickEditEvent(null);
-    }, 350);
+    } catch (err) {
+      addToast(err?.message || 'Failed to update event', 'error');
+    } finally {
+      setIsSavingQuick(false);
+    }
   };
 
   return (

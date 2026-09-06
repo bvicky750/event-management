@@ -11,18 +11,22 @@ export const DataProvider = ({ children }) => {
   const [events, setEvents] = useState([]);
   const [registrations, setRegistrations] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const { showToast } = useToast();
   const { isStaff } = useAuth();
 
   const refreshEvents = useCallback(async () => {
     try {
+      setLoading(true);
+      setError(null);
       const fetchedEvents = await eventService.fetchAllEvents({ includeDrafts: isStaff });
       if (fetchedEvents && Array.isArray(fetchedEvents)) {
         setEvents(fetchedEvents);
       }
     } catch (err) {
-      console.warn('[DataContext] Failed to fetch events:', err.message);
+      console.error('[DataContext] Failed to fetch events:', err.message);
+      setError(err.message || 'Failed to load events from server');
     } finally {
       setLoading(false);
     }
@@ -51,6 +55,11 @@ export const DataProvider = ({ children }) => {
 
   // Event actions
   const createEvent = useCallback(async (eventData) => {
+    if (!eventData?.title?.trim()) {
+      const msg = 'Event title is required.';
+      showToast(msg, 'error');
+      throw new Error(msg);
+    }
     try {
       const created = await eventService.createEvent(eventData);
       await refreshEvents();
@@ -128,6 +137,7 @@ export const DataProvider = ({ children }) => {
         events,
         registrations,
         loading,
+        error,
         refreshEvents,
         refreshRegistrations,
         createEvent,

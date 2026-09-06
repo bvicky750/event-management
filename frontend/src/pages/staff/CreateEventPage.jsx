@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useData } from '../../context/DataContext';
+import { useToast } from '../../context/ToastContext';
 import {
   Calendar,
   Sparkles,
@@ -19,6 +20,7 @@ import {
 
 export const CreateEventPage = () => {
   const { createEvent } = useData();
+  const { showToast } = useToast();
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
@@ -69,8 +71,14 @@ export const CreateEventPage = () => {
     }
   };
 
-  const handleSubmit = (e, status = 'published') => {
+  const handleSubmit = async (e, status = 'published') => {
     e.preventDefault();
+
+    if (!formData.title || !formData.title.trim()) {
+      showToast('Event title is required.', 'error');
+      return;
+    }
+
     setIsSubmitting(true);
 
     const topicsArray = formData.topics
@@ -78,9 +86,9 @@ export const CreateEventPage = () => {
       : [];
 
     const newOpportunity = {
-      title: formData.title,
-      subtitle: formData.subtitle,
-      description: formData.description,
+      title: formData.title.trim(),
+      subtitle: formData.subtitle.trim(),
+      description: formData.description.trim(),
       poster: formData.poster,
       type: formData.type,
       category: formData.category,
@@ -106,11 +114,14 @@ export const CreateEventPage = () => {
       registrationClicks: 0
     };
 
-    setTimeout(() => {
-      createEvent(newOpportunity);
+    try {
+      await createEvent(newOpportunity);
+      navigate('/staff/events');
+    } catch (err) {
+      // Toast already shown in createEvent
+    } finally {
       setIsSubmitting(false);
-      navigate('/');
-    }, 400);
+    }
   };
 
   const samplePosters = [

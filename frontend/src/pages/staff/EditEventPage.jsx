@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useData } from '../../context/DataContext';
+import { useToast } from '../../context/ToastContext';
 import {
   Calendar,
   ArrowLeft,
@@ -16,6 +17,7 @@ import {
 export const EditEventPage = () => {
   const { id } = useParams();
   const { events, updateEvent } = useData();
+  const { addToast } = useToast();
   const navigate = useNavigate();
 
   const existingEvent = events.find(e => String(e.id) === String(id));
@@ -107,8 +109,14 @@ export const EditEventPage = () => {
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (!formData.title || !formData.title.trim()) {
+      addToast('Event title is required', 'error');
+      return;
+    }
+
     setIsSubmitting(true);
 
     const topicsArray = formData.topics
@@ -116,7 +124,7 @@ export const EditEventPage = () => {
       : [];
 
     const updatedData = {
-      title: formData.title,
+      title: formData.title.trim(),
       subtitle: formData.subtitle,
       description: formData.description,
       poster: formData.poster,
@@ -141,11 +149,15 @@ export const EditEventPage = () => {
       topics: topicsArray
     };
 
-    setTimeout(() => {
-      updateEvent(existingEvent.id, updatedData);
-      setIsSubmitting(false);
+    try {
+      await updateEvent(existingEvent.id, updatedData);
+      addToast('Event updated successfully!', 'success');
       navigate('/staff/events');
-    }, 400);
+    } catch (err) {
+      addToast(err?.message || 'Failed to update event', 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (

@@ -47,3 +47,5 @@ Or run services individually:
 
 ### Building for Production
 - **Build Frontend:** `npm run build:frontend`
+
+- post the events to get students connected
